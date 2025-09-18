@@ -1,0 +1,605 @@
+@model LaborSystemServer.Service.ProductionPlanResult
+
+<!-- Summary Cards with Method-specific styling -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card text-center @(Model.AllocationMethod == ProductionPlanning.Models.AllocationMethod.NonShiftWithOvertime ? "bg-primary" : "bg-info") text-white h-100">
+            <div class="card-body">
+                <i class="fas fa-clock fa-2x mb-2"></i>
+                <h4>@Model.TotalDemandHours.ToString("N2")</h4>
+                <p class="mb-0">Total Demand (Hours)</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card text-center @(Model.AllocationMethod == ProductionPlanning.Models.AllocationMethod.NonShiftWithOvertime ? "bg-success" : "bg-primary") text-white h-100">
+            <div class="card-body">
+                <i class="fas fa-battery-full fa-2x mb-2"></i>
+                <h4>@Model.TotalCapacityHours.ToString("N2")</h4>
+                <p class="mb-0">Total Capacity (Hours)</p>
+                @if(Model.AllocationMethod == ProductionPlanning.Models.AllocationMethod.NonShiftWithOvertime && Model.OvertimeHours > 0)
+                {
+                    <small class="badge bg-warning text-dark">+@Model.OvertimeHours.ToString("N0")h OT</small>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card text-center @(Model.CapacityGap <= 0 ? "bg-danger" : "bg-warning") text-white h-100">
+            <div class="card-body">
+                <i class="fas @(Model.CapacityGap <= 0 ? "fa-exclamation-triangle" : "fa-check-circle") fa-2x mb-2"></i>
+                <h4>@Math.Abs(Model.CapacityGap).ToString("N2")</h4>
+                <p class="mb-0">@(Model.CapacityGap <= 0 ? "Shortage" : "Surplus") (Hours)</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card text-center bg-secondary text-white h-100">
+            <div class="card-body">
+                <i class="fas fa-tasks fa-2x mb-2"></i>
+                <h4>@Model.Assignments.Count</h4>
+                <p class="mb-0">Total Assignments</p>
+                <small>Method: @(Model.AllocationMethod == ProductionPlanning.Models.AllocationMethod.NonShiftWithOvertime ? "NonShift+OT" : "Multi-Shift")</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Worker Allocation & Utilization Summary -->
+<div class="row mb-4">
+    <!-- Shift Utilization (untuk Multi-Shift) -->
+    @if(Model.AllocationMethod == ProductionPlanning.Models.AllocationMethod.MultiShift)
+    {
+        <div class="col-12 mb-3">
+            <div class="card border-info h-100">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="fas fa-chart-bar"></i> Shift Utilization Summary</h6>
+                </div>
+                <div class="card-body">
+                    @{
+                        var shiftUtil = Model.ShiftUtilization;
+                    }
+                    @foreach(var shiftInfo in shiftUtil.ShiftUtilizations.Values.Where(s => s.TotalCapacityHours > 0))
+                    {
+                        var utilizationClass = shiftInfo.UtilizationPercentage > 90 ? "bg-danger" : 
+                                             shiftInfo.UtilizationPercentage > 75 ? "bg-warning" : 
+                                             "bg-success";
+                        
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold">
+                                    Shift @((int)shiftInfo.Shift)
+                                    <small class="text-muted">(@shiftInfo.AssignmentCount assignments)</small>
+                                </span>
+                                <span class="badge @utilizationClass">@shiftInfo.UtilizationPercentage.ToString("N1")%</span>
+                            </div>
+                            <div class="progress mb-1" style="height: 20px;">
+                                <div class="progress-bar @utilizationClass" 
+                                     style="width: @Math.Min(shiftInfo.UtilizationPercentage, 100)%">
+                                    @shiftInfo.UsedHours.ToString("N1")h / @shiftInfo.TotalCapacityHours.ToString("N1")h
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    <hr class="my-2">
+                    <div class="text-center">
+                        <strong>Overall Utilization: 
+                            <span class="badge @(shiftUtil.OverallUtilizationPercentage > 90 ? "bg-danger" : 
+                                               shiftUtil.OverallUtilizationPercentage > 75 ? "bg-warning" : "bg-success")">
+                                @shiftUtil.OverallUtilizationPercentage.ToString("N1")%
+                            </span>
+                        </strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="col-12 mb-3">
+            <div class="card border-primary h-100">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0"><i class="fas fa-chart-bar"></i> Capacity Utilization</h6>
+                </div>
+                <div class="card-body">
+                    @{
+                        var regularHoursUsed = Model.Assignments.Sum(a => a.PlannedHours + a.ChangeoverHours);
+                        var overtimeHoursUsed = Model.OvertimeAssignments?.Sum(oa => oa.PlannedHours + oa.ChangeoverHours) ?? 0;
+                        var totalRegularCapacity = Model.TotalCapacityHours;
+                        var regularUtilization = totalRegularCapacity > 0 ? (regularHoursUsed / totalRegularCapacity) * 100 : 0;
+                        var overtimeUtilization = Model.TotalOvertimeBudget > 0 ? (overtimeHoursUsed / Model.TotalOvertimeBudget) * 100 : 0;
+                    }
+                    
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-bold">Regular Hours</span>
+                            <span class="badge @(regularUtilization > 90 ? "bg-danger" : regularUtilization > 75 ? "bg-warning" : "bg-success")">
+                                @regularUtilization.ToString("N1")%
+                            </span>
+                        </div>
+                        <div class="progress mb-1" style="height: 20px;">
+                            <div class="progress-bar @(regularUtilization > 90 ? "bg-danger" : regularUtilization > 75 ? "bg-warning" : "bg-success")" 
+                                 style="width: @Math.Min(regularUtilization, 100)%">
+                                @regularHoursUsed.ToString("N1")h / @totalRegularCapacity.ToString("N1")h
+                            </div>
+                        </div>
+                    </div>
+
+                    @if(overtimeHoursUsed > 0)
+                    {
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold text-warning">Overtime Hours</span>
+                                <span class="badge @(overtimeUtilization > 90 ? "bg-danger" : overtimeUtilization > 75 ? "bg-warning" : "bg-info")">
+                                    @overtimeUtilization.ToString("N1")%
+                                </span>
+                            </div>
+                            <div class="progress mb-1" style="height: 20px;">
+                                <div class="progress-bar @(overtimeUtilization > 90 ? "bg-danger" : overtimeUtilization > 75 ? "bg-warning" : "bg-info")" 
+                                     style="width: @Math.Min(overtimeUtilization, 100)%">
+                                    @overtimeHoursUsed.ToString("N1")h / @Model.TotalOvertimeBudget.ToString("N1")h
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-secondary text-white">
+        <h6 class="mb-0"><i class="fas fa-industry"></i> Line-wise Worker Allocation Summary</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered">
+                <thead class="table-light">
+                    <tr>
+                        <th>Line</th>
+                        @if(Model.AllocationMethod == ProductionPlanning.Models.AllocationMethod.MultiShift)
+                        {
+                            <th>Shift 1</th>
+                            <th>Shift 2</th>
+                            <th>Shift 3</th>
+                        }
+                        else
+                        {
+                            <th>Regular</th>
+                            <th>Overtime</th>
+                        }
+                        <th>Total Hours</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{
+                        var lineGroups = Model.Assignments.GroupBy(a => a.LineId);
+                    }
+                    @foreach(var lineGroup in lineGroups.OrderBy(lg => lg.Key))
+                    {
+                        <tr>
+                            <td><strong>Line @lineGroup.Key</strong></td>
+                            @if(Model.AllocationMethod == ProductionPlanning.Models.AllocationMethod.MultiShift)
+                            {
+                                var shift1MaxWorkers = lineGroup.Where(a => a.AssignedShift == ProductionPlanning.Models.WorkType.Shift1).Max(a => (int?)a.ActualAllocatedWorkers) ?? 0;
+                                var shift2MaxWorkers = lineGroup.Where(a => a.AssignedShift == ProductionPlanning.Models.WorkType.Shift2).Max(a => (int?)a.ActualAllocatedWorkers) ?? 0;
+                                var shift3MaxWorkers = lineGroup.Where(a => a.AssignedShift == ProductionPlanning.Models.WorkType.Shift3).Max(a => (int?)a.ActualAllocatedWorkers) ?? 0;
+                                
+                                <td class="text-center">
+                                    @if(shift1MaxWorkers > 0)
+                                    {
+                                        <span class="badge bg-success">@shift1MaxWorkers</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if(shift2MaxWorkers > 0)
+                                    {
+                                        <span class="badge bg-warning">@shift2MaxWorkers</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if(shift3MaxWorkers > 0)
+                                    {
+                                        <span class="badge bg-info">@shift3MaxWorkers</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                            }
+                            else
+                            {
+                                var regularMaxWorkers = lineGroup.Max(a => a.ActualAllocatedWorkers);
+                                var overtimeMaxWorkers = 0;
+                                if (Model.OvertimeAssignments != null)
+                                {
+                                    overtimeMaxWorkers = Model.OvertimeAssignments.Where(oa => oa.LineId == lineGroup.Key).Max(oa => (int?)oa.ActualAllocatedWorkers) ?? 0;
+                                }
+                                
+                                <td class="text-center">
+                                    <span class="badge bg-primary">@regularMaxWorkers</span>
+                                </td>
+                                <td class="text-center">
+                                    @if(overtimeMaxWorkers > 0)
+                                    {
+                                        <span class="badge bg-warning">@overtimeMaxWorkers</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                            }
+                            <td class="text-end">
+                                @{
+                                    var totalLineHours = lineGroup.Sum(a => a.PlannedHours + a.ChangeoverHours);
+                                    if (Model.OvertimeAssignments != null)
+                                    {
+                                        totalLineHours += Model.OvertimeAssignments.Where(oa => oa.LineId == lineGroup.Key).Sum(oa => oa.PlannedHours + oa.ChangeoverHours);
+                                    }
+                                }
+                                <strong>@totalLineHours.ToString("N2")</strong>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <th>TOTAL</th>
+                        @if(Model.AllocationMethod == ProductionPlanning.Models.AllocationMethod.MultiShift)
+                        {
+                            <th class="text-center">
+                                @{
+                                    var allShift1Max = 0;
+                                    foreach(var lg in lineGroups)
+                                    {
+                                        allShift1Max += lg.Where(a => a.AssignedShift == ProductionPlanning.Models.WorkType.Shift1).Max(a => (int?)a.ActualAllocatedWorkers) ?? 0;
+                                    }
+                                }
+                                <strong>@allShift1Max</strong>
+                            </th>
+                            <th class="text-center">
+                                @{
+                                    var allShift2Max = 0;
+                                    foreach(var lg in lineGroups)
+                                    {
+                                        allShift2Max += lg.Where(a => a.AssignedShift == ProductionPlanning.Models.WorkType.Shift2).Max(a => (int?)a.ActualAllocatedWorkers) ?? 0;
+                                    }
+                                }
+                                <strong>@allShift2Max</strong>
+                            </th>
+                            <th class="text-center">
+                                @{
+                                    var allShift3Max = 0;
+                                    foreach(var lg in lineGroups)
+                                    {
+                                        allShift3Max += lg.Where(a => a.AssignedShift == ProductionPlanning.Models.WorkType.Shift3).Max(a => (int?)a.ActualAllocatedWorkers) ?? 0;
+                                    }
+                                }
+                                <strong>@allShift3Max</strong>
+                            </th>
+                        }
+                        else
+                        {
+                            <th class="text-center">
+                                @{
+                                    var allRegularMax = 0;
+                                    foreach(var lg in lineGroups)
+                                    {
+                                        allRegularMax += lg.Max(a => a.ActualAllocatedWorkers);
+                                    }
+                                }
+                                <strong>@allRegularMax</strong>
+                            </th>
+                            <th class="text-center">
+                                @{
+                                    var allOvertimeMax = 0;
+                                    if (Model.OvertimeAssignments != null)
+                                    {
+                                        foreach(var lg in lineGroups)
+                                        {
+                                            allOvertimeMax += Model.OvertimeAssignments.Where(oa => oa.LineId == lg.Key).Max(oa => (int?)oa.ActualAllocatedWorkers) ?? 0;
+                                        }
+                                    }
+                                }
+                                <strong>@allOvertimeMax</strong>
+                            </th>
+                        }
+                        <th class="text-end">
+                            @{
+                                var grandTotalHours = Model.Assignments.Sum(a => a.PlannedHours + a.ChangeoverHours);
+                                if (Model.OvertimeAssignments != null)
+                                {
+                                    grandTotalHours += Model.OvertimeAssignments.Sum(oa => oa.PlannedHours + oa.ChangeoverHours);
+                                }
+                            }
+                            <strong>@grandTotalHours.ToString("N2")</strong>
+                        </th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Regular Assignments Table -->
+@if(Model.Assignments.Any())
+{
+    <h5 class="mb-3">
+        <i class="fas fa-clipboard-list"></i> 
+        @(Model.AllocationMethod == ProductionPlanning.Models.AllocationMethod.NonShiftWithOvertime ? "NonShift" : "Multi-Shift") 
+        Production Assignments (Regular Hours)
+    </h5>
+    <div class="table-responsive mb-4">
+        <table class="table table-bordered table-striped table-hover">
+            <thead class="@(Model.AllocationMethod == ProductionPlanning.Models.AllocationMethod.NonShiftWithOvertime ? "table-primary" : "table-dark")">
+                <tr>
+                    <th>Line</th>
+                    @if(Model.AllocationMethod == ProductionPlanning.Models.AllocationMethod.MultiShift)
+                    {
+                        <th>Shift</th>
+                    }
+                    <th>Model</th>
+                    <th>Quantity</th>
+                    <th>Production Hours</th>
+                    <th>Changeover Hours</th>
+                    <th>Total Hours</th>
+                    <th>Required Workers</th>
+                    <th>Default Workers</th>
+                    <th>Allocated Workers</th>
+                    <th>Surplus Workers</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach(var assignment in Model.Assignments.OrderBy(a => a.LineId).ThenBy(a => a.AssignedShift).ThenBy(a => a.CreatedDate))
+                {
+                    <tr>
+                        <td><span class="badge bg-primary">Line @assignment.LineId</span></td>
+                        @if(Model.AllocationMethod == ProductionPlanning.Models.AllocationMethod.MultiShift)
+                        {
+                            <td>
+                                <span class="badge @(assignment.AssignedShift == ProductionPlanning.Models.WorkType.Shift1 ? "bg-success" : assignment.AssignedShift == ProductionPlanning.Models.WorkType.Shift2 ? "bg-warning" : "bg-info")">
+                                    Shift @((int)assignment.AssignedShift)
+                                </span>
+                            </td>
+                        }
+                        <td><strong>@assignment.ModelData.ModelName</strong></td>
+                        <td class="text-end">@assignment.AssignedQuantity.ToString("N0")</td>
+                        <td class="text-end">@assignment.PlannedHours.ToString("N2")</td>
+                        <td class="text-end">
+                            <span class="badge @(assignment.ChangeoverHours > 0 ? "bg-warning" : "bg-secondary")">
+                                @(assignment.ChangeoverHours.ToString("N2"))
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <strong class="text-primary">
+                                @((assignment.PlannedHours + assignment.ChangeoverHours).ToString("N2"))
+                            </strong>
+                        </td>
+                        <td class="text-end">
+                            <span class="badge bg-info">@assignment.RequiredWorkers</span>
+                        </td>
+                        <td class="text-end">
+                            <span class="badge bg-secondary">@assignment.DefaultCapacity</span>
+                        </td>
+                        <td class="text-end">
+                            <span class="badge @(assignment.ActualAllocatedWorkers < assignment.DefaultCapacity ? "bg-success" : "bg-warning")">
+                                @assignment.ActualAllocatedWorkers
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <span class="badge @(assignment.SurplusWorkers > 0 ? "bg-warning" : "bg-success")">
+                                @assignment.SurplusWorkers
+                            </span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            @{
+                var groupedByLine = Model.Assignments
+                    .GroupBy(a => a.LineId)
+                    .Select(g => new {
+                        Required = g.Max(x => x.RequiredWorkers),
+                        Default = g.Max(x => x.DefaultCapacity),
+                        Allocated = g.Max(x => x.ActualAllocatedWorkers),
+                        Surplus = g.Max(x => x.SurplusWorkers)
+                    });
+            }
+
+            <tfoot class="table-secondary">
+                <tr>
+                    <th colspan="@(Model.AllocationMethod == ProductionPlanning.Models.AllocationMethod.MultiShift ? "3" : "2")">TOTAL</th>
+                    <th class="text-end">@Model.Assignments.Sum(a => a.AssignedQuantity).ToString("N0")</th>
+                    <th class="text-end">@Model.Assignments.Sum(a => a.PlannedHours).ToString("N2")</th>
+                    <th class="text-end">@Model.Assignments.Sum(a => a.ChangeoverHours).ToString("N2")</th>
+                    <th class="text-end"><strong>@Model.Assignments.Sum(a => a.PlannedHours + a.ChangeoverHours).ToString("N2")</strong></th>
+
+                    <th class="text-end">@groupedByLine.Sum(g => g.Required).ToString("N0")</th>
+                    <th class="text-end">@groupedByLine.Sum(g => g.Default).ToString("N0")</th>
+                    <th class="text-end"><strong class="text-success">@groupedByLine.Sum(g => g.Allocated).ToString("N0")</strong></th>
+                    <th class="text-end">@groupedByLine.Sum(g => g.Surplus).ToString("N0")</th>
+                </tr>
+            </tfoot>
+
+        </table>
+    </div>
+}
+
+<!-- Overtime Assignments Table -->
+@if(Model.OvertimeAssignments != null && Model.OvertimeAssignments.Any())
+{
+    <h5 class="mb-3">
+        <i class="fas fa-clock text-warning"></i> 
+        Overtime Production Assignments
+        <small class="text-muted">(@Model.OvertimeAssignments.Count assignments)</small>
+    </h5>
+    <div class="table-responsive mb-4">
+        <table class="table table-bordered table-striped table-hover">
+            <thead class="table-warning">
+                <tr>
+                    <th>Line</th>
+                    <th>Model</th>
+                    <th>Quantity</th>
+                    <th>Production Hours</th>
+                    <th>Changeover Hours</th>
+                    <th>Total Hours</th>
+                    <th>Required Workers</th>
+                    <th>Default Workers</th>
+                    <th>Allocated Workers</th>
+                    <th>Surplus Workers</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach(var overtimeAssignment in Model.OvertimeAssignments.OrderBy(a => a.LineId).ThenBy(a => a.CreatedDate))
+                {
+                    <tr class="table-warning bg-opacity-25">
+                        <td><span class="badge bg-warning text-dark">Line @overtimeAssignment.LineId</span></td>
+                        <td><strong>@overtimeAssignment.ModelData.ModelName</strong></td>
+                        <td class="text-end">@overtimeAssignment.AssignedQuantity.ToString("N0")</td>
+                        <td class="text-end">@overtimeAssignment.PlannedHours.ToString("N2")</td>
+                        <td class="text-end">
+                            <span class="badge @(overtimeAssignment.ChangeoverHours > 0 ? "bg-warning" : "bg-secondary")">
+                                @(overtimeAssignment.ChangeoverHours.ToString("N2"))
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <strong class="text-warning">
+                                @((overtimeAssignment.PlannedHours + overtimeAssignment.ChangeoverHours).ToString("N2"))
+                            </strong>
+                        </td>
+                        <td class="text-end">
+                            <span class="badge bg-info">@overtimeAssignment.RequiredWorkers</span>
+                        </td>
+                        <td class="text-end">
+                            <span class="badge bg-secondary">@overtimeAssignment.DefaultCapacity</span>
+                        </td>
+                        <td class="text-end">
+                            <span class="badge @(overtimeAssignment.ActualAllocatedWorkers < overtimeAssignment.DefaultCapacity ? "bg-success" : "bg-warning")">
+                                @overtimeAssignment.ActualAllocatedWorkers
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <span class="badge @(overtimeAssignment.SurplusWorkers > 0 ? "bg-warning" : "bg-success")">
+                                @overtimeAssignment.SurplusWorkers
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-danger">
+                                <i class="fas fa-clock"></i> OT
+                            </span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot class="table-warning">
+                <tr>
+                    <th colspan="2">OVERTIME TOTAL</th>
+                    <th class="text-end">@Model.OvertimeAssignments.Sum(oa => oa.AssignedQuantity).ToString("N0")</th>
+                    <th class="text-end">@Model.OvertimeAssignments.Sum(oa => oa.PlannedHours).ToString("N2")</th>
+                    <th class="text-end">@Model.OvertimeAssignments.Sum(oa => oa.ChangeoverHours).ToString("N2")</th>
+                    <th class="text-end">
+                        <strong>
+                            @Model.OvertimeAssignments.Sum(oa => oa.PlannedHours + oa.ChangeoverHours).ToString("N2")
+                        </strong>
+                    </th>
+
+                    <th class="text-end">
+                        @(Model.OvertimeAssignments
+                            .GroupBy(oa => oa.LineId)
+                            .Sum(g => g.Max(x => x.RequiredWorkers))
+                            .ToString("N0"))
+                    </th>
+                    <th class="text-end">
+                        @(Model.OvertimeAssignments
+                            .GroupBy(oa => oa.LineId)
+                            .Sum(g => g.Max(x => x.DefaultCapacity))
+                            .ToString("N0"))
+                    </th>
+                    <th class="text-end">
+                        <strong class="text-warning">
+                            @(Model.OvertimeAssignments
+                                .GroupBy(oa => oa.LineId)
+                                .Sum(g => g.Max(x => x.ActualAllocatedWorkers))
+                                .ToString("N0"))
+                        </strong>
+                    </th>
+                    <th class="text-end">
+                        @(Model.OvertimeAssignments
+                            .GroupBy(oa => oa.LineId)
+                            .Sum(g => g.Max(x => x.SurplusWorkers))
+                            .ToString("N0"))
+                    </th>
+                    <th class="text-center">OT</th>
+                </tr>
+            </tfoot>
+
+        </table>
+    </div>
+    
+    <div class="alert alert-warning mb-4">
+        <h6 class="alert-heading"><i class="fas fa-info-circle"></i> Overtime Summary</h6>
+        <div class="row">
+            <div class="col-md-3">
+                <strong>Total OT Assignments:</strong> @Model.OvertimeAssignments.Count
+            </div>
+            <div class="col-md-3">
+                <strong>Total OT Hours:</strong> @Model.OvertimeAssignments.Sum(o => o.PlannedHours + o.ChangeoverHours).ToString("N2")
+            </div>
+            <div class="col-md-3">
+                <strong>OT Models:</strong> @Model.OvertimeAssignments.Select(o => o.ModelData.ModelName).Distinct().Count()
+            </div>
+            <div class="col-md-3">
+                <strong>OT Lines:</strong> @Model.OvertimeAssignments.Select(o => o.LineId).Distinct().Count()
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Unassigned Models -->
+@if(Model.UnassignedModels.Any())
+{
+    <div class="alert alert-danger">
+        <h5 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> Unassigned Models</h5>
+        <p>The following models could not be assigned using @(Model.AllocationMethod == ProductionPlanning.Models.AllocationMethod.NonShiftWithOvertime ? "NonShift + Overtime" : "Multi-Shift") method:</p>
+    </div>
+    
+    <div class="table-responsive mb-4">
+        <table class="table table-bordered table-striped">
+            <thead class="table-danger">
+                <tr>
+                    <th>Model</th>
+                    <th>Unassigned Quantity</th>
+                    <th>Required Hours</th>
+                    <th>Required Workers</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach(var unassigned in Model.UnassignedModels)
+                {
+                    <tr>
+                        <td><strong>@unassigned.ModelName</strong></td>
+                        <td class="text-end">@unassigned.UnassignedQuantity.ToString("N0")</td>
+                        <td class="text-end">@unassigned.RequiredHours.ToString("N2")</td>
+                        <td class="text-end">
+                            <span class="badge bg-secondary">@unassigned.RequiredHeadCount</span>
+                        </td>
+                        <td><small class="text-muted">@unassigned.Reason</small></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

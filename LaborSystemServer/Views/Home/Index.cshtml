@@ -1,0 +1,415 @@
+﻿
+@{
+    ViewData["Title"] = "Upload Excel & Worker Planning";
+}
+<div class="container mt-4">
+    <h2 class="mb-4">Upload Excel & Production Planning with Worker Optimization</h2>
+
+    @if(!string.IsNullOrEmpty(ViewBag.Error as string))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <strong>Error!</strong> @ViewBag.Error
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    @if(!string.IsNullOrEmpty(ViewBag.Success as string))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <strong>Success!</strong> @ViewBag.Success
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <!-- Upload Form -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-upload"></i> Upload Excel File</h5>
+        </div>
+        <div class="card-body">
+            <form asp-action="UploadExcel" method="post" enctype="multipart/form-data">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="month" class="form-label">Bulan</label>
+                        <select name="month" id="month" class="form-select" required>
+                            <option value="">-- Pilih Bulan --</option>
+                            <option value="1">Jan</option>
+                            <option value="2">Feb</option>
+                            <option value="3">Mar</option>
+                            <option value="4">Apr</option>
+                            <option value="5">Mei</option>
+                            <option value="6">Jun</option>
+                            <option value="7">Jul</option>
+                            <option value="8">Aug</option>
+                            <option value="9">Sep</option>
+                            <option value="10">Okt</option>
+                            <option value="11">Nov</option>
+                            <option value="12">Dec</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label for="year" class="form-label">Tahun</label>
+                        <input type="number" name="year" id="year" class="form-control" 
+                               min="2000" max="2100" value="@DateTime.Now.Year" required />
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label for="file" class="form-label">File Excel</label>
+                        <input type="file" name="file" id="file" 
+                               class="form-control" accept=".xlsx,.xls" required />
+                        <div class="form-text">Pilih file Excel (.xlsx atau .xls)</div>
+                    </div>
+                </div>
+
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="fas fa-cloud-upload-alt"></i> Upload & Generate Production Plan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Excel Results Section - Updated for Multi-Shift -->
+    @if(ViewBag.Results != null)
+    {
+        var results = ViewBag.Results.Data as List<ProductionPlanning.Models.ModelData>;
+        var hariKerja = ViewBag.Results.HariKerja;
+        
+        // Calculate both NonShift and Multi-shift capacities
+        double nonShiftRegularHours = ((hariKerja.TotalSeninKamis * 473) + (hariKerja.TotalJumat * 433)) / 60.0;
+        double nonShiftOvertimeHours = 500.0;
+        double nonShiftTotalHours = (nonShiftRegularHours * 8) + nonShiftOvertimeHours;
+        
+        // Multi-shift calculations (existing)
+        double shift1Hours = ((hariKerja.TotalSeninKamis * 458) + (hariKerja.TotalJumat * 418)) / 60.0;
+        double shift2Hours = ((hariKerja.TotalSeninKamis + hariKerja.TotalJumat) * 398) / 60.0;
+        double shift3Hours = ((hariKerja.TotalSeninKamis + hariKerja.TotalJumat) * 398) / 60.0;
+        double totalHoursPerLineAllShifts = shift1Hours + shift2Hours + shift3Hours;
+        double totalHoursAllLinesAllShifts = totalHoursPerLineAllShifts * 8;
+        
+        double totalDemandHours = results.Sum(r => r.TotalWorkHours);
+        double capacityGapNonShift = nonShiftTotalHours - totalDemandHours;
+        double capacityGapMultiShift = totalHoursAllLinesAllShifts - totalDemandHours;
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-table"></i> Hasil Upload Excel - @ViewBag.Results.Month.ToString("D2")/@ViewBag.Results.Year</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="card text-center bg-success text-white">
+                            <div class="card-body">
+                                <h6>NonShift Capacity</h6>
+                                <h4>@nonShiftRegularHours.ToString("N2")</h4>
+                                <small>@hariKerja.TotalSeninKamis days (473min) + @hariKerja.TotalJumat days (433min)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card text-center bg-primary text-white">
+                            <div class="card-body">
+                                <h6>Shift 1 Capacity</h6>
+                                <h4>@shift1Hours.ToString("N2")</h4>
+                                <small>@hariKerja.TotalSeninKamis days (458min) + @hariKerja.TotalJumat days (418min)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card text-center bg-secondary text-white">
+                            <div class="card-body">
+                                <h6>Shift 2 & 3 Capacity</h6>
+                                <h4>@shift2Hours.ToString("N2")</h4>
+                                <small>@(hariKerja.TotalSeninKamis + hariKerja.TotalJumat) days × 398min each</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>No</th>
+                                <th>Model Name</th>
+                                <th>Quantity</th>
+                                <th>Total Hours (SUT × Qty)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{int counter = 1;}
+                            @foreach(var item in results)
+                            {
+                                <tr>
+                                    <td>@counter</td>
+                                    <td><strong>@item.ModelName</strong></td>
+                                    <td class="text-end">@item.Quantity.ToString("N0")</td>
+                                    <td class="text-end">@item.TotalWorkHours.ToString("N2")</td>
+                                </tr>
+                                counter++;
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card border-primary">
+                            <div class="card-header bg-primary text-white text-center">
+                                <h6 class="mb-0">Method 1: NonShift + Overtime</h6>
+                            </div>
+                            <div class="card-body text-center">
+                                <h5>@nonShiftTotalHours.ToString("N2") Hours</h5>
+                                <small class="text-muted">
+                                    Regular: @( (nonShiftRegularHours * 8).ToString("N2") )h + 
+                                    Overtime: @( (nonShiftOvertimeHours).ToString("N2") )h
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-warning">
+                            <div class="card-header bg-warning text-dark text-center">
+                                <h6 class="mb-0">Method 2: Multi-Shift</h6>
+                            </div>
+                            <div class="card-body text-center">
+                                <h5>@totalHoursAllLinesAllShifts.ToString("N2") Hours</h5>
+                                <small class="text-muted">
+                                    Shift1: @( (shift1Hours * 8).ToString("N2") )h + 
+                                    Shift2: @( (shift2Hours * 8).ToString("N2") )h + 
+                                    Shift3: @( (shift3Hours * 8).ToString("N2") )h
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Production Plan Results Section -->
+    @if(ViewBag.ProductionPlan1 != null || ViewBag.ProductionPlan2 != null)
+    {
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-industry"></i> Production Planning Results Comparison</h5>
+            </div>
+            <div class="card-body">
+                <ul class="nav nav-tabs" id="productionPlanTabs" role="tablist">
+                    @if(ViewBag.ProductionPlan1 != null)
+                    {
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="nonshift-tab" data-bs-toggle="tab" data-bs-target="#nonshift-content" type="button" role="tab">
+                                <i class="fas fa-clock"></i> NonShift + Overtime
+                            </button>
+                        </li>
+                    }
+                    @if(ViewBag.ProductionPlan2 != null)
+                    {
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link @(ViewBag.ProductionPlan1 == null ? "active" : "")" id="multishift-tab" data-bs-toggle="tab" data-bs-target="#multishift-content" type="button" role="tab">
+                                <i class="fas fa-users"></i> Multi-Shift
+                            </button>
+                        </li>
+                    }
+                </ul>
+
+                <div class="tab-content mt-3" id="productionPlanTabsContent">
+                    @if(ViewBag.ProductionPlan1 != null)
+                    {
+                        var plan1 = ViewBag.ProductionPlan1 as LaborSystemServer.Service.ProductionPlanResult;
+                        <div class="tab-pane fade show active" id="nonshift-content" role="tabpanel">
+                            @await Html.PartialAsync("_ProductionPlanPartial", plan1)
+                        </div>
+                    }
+                    @if(ViewBag.ProductionPlan2 != null)
+                    {
+                        var plan2 = ViewBag.ProductionPlan2 as LaborSystemServer.Service.ProductionPlanResult;
+                        <div class="tab-pane fade @(ViewBag.ProductionPlan1 == null ? "show active" : "")" id="multishift-content" role="tabpanel">
+                            @await Html.PartialAsync("_ProductionPlanPartial", plan2)
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @if(ViewBag.ProductionPlan1 != null && ViewBag.ProductionPlan2 != null)
+        {
+            var plan1 = ViewBag.ProductionPlan1 as LaborSystemServer.Service.ProductionPlanResult;
+            var plan2 = ViewBag.ProductionPlan2 as LaborSystemServer.Service.ProductionPlanResult;
+            
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="fas fa-balance-scale"></i> Method Comparison Summary</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="table-primary">
+                                        <tr>
+                                            <th colspan="2" class="text-center">NonShift + Overtime</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Regular Assignments</td>
+                                            <td class="text-end"><strong>@plan1.Assignments.Count</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Overtime Assignments</td>
+                                            <td class="text-end text-warning"><strong>@plan1.OvertimeAssignments.Count</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Total Assigned Quantity</td>
+                                            <td class="text-end"><strong>@((plan1.Assignments.Sum(a => a.AssignedQuantity) + plan1.OvertimeAssignments.Sum(a => a.AssignedQuantity)).ToString("N0"))</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Regular Hours Used</td>
+                                            <td class="text-end"><strong>@plan1.Assignments.Sum(a => a.PlannedHours + a.ChangeoverHours).ToString("N2")</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Overtime Hours Used</td>
+                                            <td class="text-end text-warning"><strong>@plan1.TotalOvertimeUsed.ToString("N2") / @plan1.TotalOvertimeBudget.ToString("N2")</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Unassigned Models</td>
+                                            <td class="text-end @(plan1.UnassignedModels.Any() ? "text-danger" : "text-success")">
+                                                <strong>@plan1.UnassignedModels.Count (@plan1.UnassignedModels.Sum(u => u.UnassignedQuantity).ToString("N0") units)</strong>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>Workers Optimized</td>
+                                            <td class="text-end"><strong>@(plan1.WorkerOptimization?.TotalWorkersSaved ?? 0)</strong></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="table-warning">
+                                        <tr>
+                                            <th colspan="2" class="text-center">Multi-Shift</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Total Assignments</td>
+                                            <td class="text-end"><strong>@plan2.Assignments.Count</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Overtime Assignments</td>
+                                            <td class="text-end text-muted"><strong>N/A</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Assigned Quantity</td>
+                                            <td class="text-end"><strong>@plan2.Assignments.Sum(a => a.AssignedQuantity).ToString("N0")</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Shift 1 Hours Used</td>
+                                            <td class="text-end"><strong>@plan2.Assignments.Where(a => a.AssignedShift == ProductionPlanning.Models.WorkType.Shift1).Sum(a => a.PlannedHours + a.ChangeoverHours).ToString("N2")</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Shift 2&3 Hours Used</td>
+                                            <td class="text-end"><strong>@plan2.Assignments.Where(a => a.AssignedShift != ProductionPlanning.Models.WorkType.Shift1).Sum(a => a.PlannedHours + a.ChangeoverHours).ToString("N2")</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Unassigned Models</td>
+                                            <td class="text-end @(plan2.UnassignedModels.Any() ? "text-danger" : "text-success")">
+                                                <strong>@plan2.UnassignedModels.Count (@plan2.UnassignedModels.Sum(u => u.UnassignedQuantity).ToString("N0") units)</strong>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>Workers Optimized</td>
+                                            <td class="text-end"><strong>@(plan2.WorkerOptimization?.TotalWorkersSaved ?? 0)</strong></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert @(plan1.UnassignedModels.Sum(u => u.UnassignedQuantity) <= plan2.UnassignedModels.Sum(u => u.UnassignedQuantity) ? "alert-info" : "alert-warning") mt-3">
+                        <h6 class="alert-heading"><i class="fas fa-lightbulb"></i> Recommendation</h6>
+                        @{
+                            var plan1Unassigned = plan1.UnassignedModels.Sum(u => u.UnassignedQuantity);
+                            var plan2Unassigned = plan2.UnassignedModels.Sum(u => u.UnassignedQuantity);
+                            var betterMethod = plan1Unassigned <= plan2Unassigned ? "NonShift + Overtime" : "Multi-Shift";
+                            
+                            var overtimeUtilization = plan1.TotalOvertimeBudget > 0 ? (plan1.TotalOvertimeUsed / plan1.TotalOvertimeBudget) * 100 : 0;
+                        }
+                        <p class="mb-2">
+                            <strong>@betterMethod</strong> method shows better results with fewer unassigned units (@(plan1Unassigned <= plan2Unassigned ? plan1Unassigned : plan2Unassigned) vs @(plan1Unassigned > plan2Unassigned ? plan1Unassigned : plan2Unassigned)).
+                        </p>
+                        @if(betterMethod == "NonShift + Overtime")
+                        {
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <small class="text-muted">
+                                        • Regular assignments: <strong>@plan1.Assignments.Count</strong> allocations<br>
+                                        • Overtime assignments: <strong>@plan1.OvertimeAssignments.Count</strong> allocations using <strong>@plan1.TotalOvertimeUsed.ToString("N1")</strong>h of @plan1.TotalOvertimeBudget.ToString("N1")h budget<br>
+                                        • Overtime utilization: <strong>@overtimeUtilization.ToString("N1")%</strong>
+                                    </small>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar @(overtimeUtilization > 80 ? "bg-warning" : "bg-info")" role="progressbar" 
+                                            style="width: @overtimeUtilization.ToString("N1")%">
+                                            @overtimeUtilization.ToString("N1")%
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">Overtime Budget Usage</small>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <small class="text-muted">
+                                Multi-shift provides better capacity distribution across shifts without requiring overtime.
+                            </small>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+
+<style>
+    .card {
+        border: none;
+        border-radius: 10px;
+    }
+    
+    .table th {
+        border-top: none;
+        font-weight: 600;
+    }
+    
+    .badge {
+        font-size: 0.75em;
+    }
+    
+    .progress {
+        border-radius: 15px;
+    }
+    
+    .alert {
+        border-radius: 10px;
+    }
+
+    .border-left-primary {
+        border-left: 4px solid #007bff !important;
+    }
+
+    .fs-6 {
+        font-size: 0.875rem;
+    }
+</style>

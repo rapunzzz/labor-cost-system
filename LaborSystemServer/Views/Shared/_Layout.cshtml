@@ -1,0 +1,107 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - LaborSystemServer</title>
+    <script type="importmap"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/LaborSystemServer.styles.css" asp-append-version="true" />
+</head>
+<body>
+    <header>
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <a href="/" class="sidebar-brand">
+                    <i class="fas fa-industry"></i>
+                    Production System
+                </a>
+            </div>
+            
+            <div class="sidebar-nav">
+                <!-- Dashboard Section -->
+                <div class="nav-section">
+                    <div class="nav-section-title">Dashboard</div>
+                    <a href="/" class="nav-link active">
+                        <i class="fas fa-tachometer-alt"></i>
+                        Overview
+                    </a>
+                </div>
+                
+                <!-- Production Planning Section -->
+                <!-- <div class="nav-section">
+                    <div class="nav-section-title">Production Planning</div>
+                    <a href="/Upload" class="nav-link">
+                        <i class="fas fa-upload"></i>
+                        Upload & Planning
+                    </a>
+                    <a href="/Models" class="nav-link">
+                        <i class="fas fa-cubes"></i>
+                        Model Management
+                        <span class="nav-badge">12</span>
+                    </a>
+                    <div class="nav-link nav-toggle" onclick="toggleSubmenu('production-submenu')">
+                        <i class="fas fa-clipboard-list"></i>
+                        Production Plans
+                    </div>
+                    <div class="nav-submenu" id="production-submenu">
+                        <a href="/ProductionPlans/Current" class="nav-link">
+                            <i class="fas fa-calendar-day"></i>
+                            Current Month
+                        </a>
+                        <a href="/ProductionPlans/History" class="nav-link">
+                            <i class="fas fa-history"></i>
+                            Planning History
+                        </a>
+                        <a href="/ProductionPlans/Forecast" class="nav-link">
+                            <i class="fas fa-chart-line"></i>
+                            Forecast
+                        </a>
+                    </div>
+                </div> -->
+                
+                <!-- Line Management Section -->
+                <!-- <div class="nav-section">
+                    <div class="nav-section-title">Line Management</div>
+                    <a href="/Lines" class="nav-link">
+                        <i class="fas fa-stream"></i>
+                        Line Configuration
+                        <span class="nav-badge">8</span>
+                    </a>
+                    <a href="/Workers" class="nav-link">
+                        <i class="fas fa-users"></i>
+                        Worker Allocation
+                    </a>
+                    <a href="/Capacity" class="nav-link">
+                        <i class="fas fa-battery-three-quarters"></i>
+                        Capacity Planning
+                    </a>
+                    <a href="/Optimization" class="nav-link">
+                        <i class="fas fa-cog"></i>
+                        Worker Optimization
+                    </a>
+                </div>                 -->
+            </div>
+        </nav>
+    </header>
+    <div class="main-content">
+        <div class="container-fluid">
+            <main role="main" class="pb-3">
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+
+
+    <footer class="border-top footer text-muted">
+        <div class="container">
+            &copy; 2025 - LaborSystemServer - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+        </div>
+    </footer>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

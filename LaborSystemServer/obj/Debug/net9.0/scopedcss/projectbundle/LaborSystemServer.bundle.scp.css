@@ -1,0 +1,165 @@
+/* _content/LaborSystemServer/Views/Shared/_Layout.cshtml.rz.scp.css */
+/* Please see documentation at https://learn.microsoft.com/aspnet/core/client-side/bundling-and-minification
+for details on configuring this project to bundle and minify static web assets. */
+.sidebar[b-85oiml4itt] {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 280px;
+    /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
+    background-color: black;
+    color: white;
+    z-index: 1000;
+    transition: transform 0.3s ease;
+    overflow-y: auto;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+}
+
+.sidebar.collapsed[b-85oiml4itt] {
+    transform: translateX(-280px);
+}
+
+.sidebar-header[b-85oiml4itt] {
+    padding: 1.5rem;
+    background: rgba(0,0,0,0.1);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.sidebar-brand[b-85oiml4itt] {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: white;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+}
+
+.sidebar-brand i[b-85oiml4itt] {
+    margin-right: 0.75rem;
+    font-size: 1.4rem;
+}
+
+.sidebar-nav[b-85oiml4itt] {
+    padding: 1rem 0;
+}
+
+.nav-section[b-85oiml4itt] {
+    margin-bottom: 1.5rem;
+}
+
+.nav-section-title[b-85oiml4itt] {
+    padding: 0 1.5rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 0.5px;
+}
+
+.nav-link[b-85oiml4itt] {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    color: rgba(255,255,255,0.9);
+    text-decoration: none;
+    transition: all 0.3s ease;
+    border-left: 3px solid transparent;
+}
+
+.nav-link:hover[b-85oiml4itt] {
+    background: rgba(255,255,255,0.1);
+    color: white;
+    border-left-color: #fff;
+}
+
+.nav-link.active[b-85oiml4itt] {
+    background: rgba(255,255,255,0.15);
+    color: white;
+    border-left-color: #ffc107;
+    font-weight: 500;
+}
+
+.nav-link i[b-85oiml4itt] {
+    margin-right: 0.75rem;
+    font-size: 1rem;
+    width: 20px;
+    text-align: center;
+}
+
+.nav-badge[b-85oiml4itt] {
+    margin-left: auto;
+    background: rgba(255,255,255,0.2);
+    color: white;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 10px;
+}
+
+.main-content[b-85oiml4itt] {
+    margin-left: 280px;
+    transition: margin-left 0.3s ease;
+    min-height: 100vh;
+}
+
+.main-content.expanded[b-85oiml4itt] {
+    margin-left: 0;
+}
+
+.navbar[b-85oiml4itt] {
+    margin-left: 0;
+    z-index: 999;
+}
+
+@media (max-width: 768px) {
+    .sidebar[b-85oiml4itt] {
+        transform: translateX(-280px);
+    }
+    
+    .sidebar.show[b-85oiml4itt] {
+        transform: translateX(0);
+    }
+    
+    .main-content[b-85oiml4itt] {
+        margin-left: 0;
+    }
+}
+
+.nav-submenu[b-85oiml4itt] {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.nav-submenu.show[b-85oiml4itt] {
+    max-height: 200px;
+}
+
+.nav-submenu .nav-link[b-85oiml4itt] {
+    padding-left: 3rem;
+    font-size: 0.9rem;
+}
+
+.nav-toggle[b-85oiml4itt] {
+    cursor: pointer;
+}
+
+.nav-toggle[b-85oiml4itt]::after {
+    content: '\f078';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    margin-left: auto;
+    transition: transform 0.3s ease;
+    font-size: 0.8rem;
+}
+
+.nav-toggle.expanded[b-85oiml4itt]::after {
+    transform: rotate(180deg);
+}
+.footer[b-85oiml4itt] {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  white-space: nowrap;
+  line-height: 60px;
+}
