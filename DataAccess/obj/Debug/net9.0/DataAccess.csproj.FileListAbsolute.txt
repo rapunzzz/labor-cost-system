@@ -15,3 +15,4 @@ C:\Users\legion\OneDrive\Documents\Magang PMI\LaborSystem\DataAccess\obj\Debug\n
 C:\Users\legion\OneDrive\Documents\Magang PMI\LaborSystem\DataAccess\obj\Debug\net9.0\DataAccess.pdb
 C:\Users\legion\OneDrive\Documents\Magang PMI\LaborSystem\DataAccess\obj\Debug\net9.0\DataAccess.genruntimeconfig.cache
 C:\Users\legion\OneDrive\Documents\Magang PMI\LaborSystem\DataAccess\obj\Debug\net9.0\ref\DataAccess.dll
+C:\Users\legion\OneDrive\Documents\Magang PMI\LaborSystem\DataAccess\obj\Debug\net9.0\DataAccess.sourcelink.json

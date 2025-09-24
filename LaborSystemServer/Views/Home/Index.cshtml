@@ -79,8 +79,7 @@
         
         // Calculate both NonShift and Multi-shift capacities
         double nonShiftRegularHours = ((hariKerja.TotalSeninKamis * 473) + (hariKerja.TotalJumat * 433)) / 60.0;
-        double nonShiftOvertimeHours = 500.0;
-        double nonShiftTotalHours = (nonShiftRegularHours * 8) + nonShiftOvertimeHours;
+        double nonShiftTotalHours = (nonShiftRegularHours * 8);
         
         // Multi-shift calculations (existing)
         double shift1Hours = ((hariKerja.TotalSeninKamis * 458) + (hariKerja.TotalJumat * 418)) / 60.0;
@@ -163,8 +162,7 @@
                             <div class="card-body text-center">
                                 <h5>@nonShiftTotalHours.ToString("N2") Hours</h5>
                                 <small class="text-muted">
-                                    Regular: @( (nonShiftRegularHours * 8).ToString("N2") )h + 
-                                    Overtime: @( (nonShiftOvertimeHours).ToString("N2") )h
+                                    Regular: @( (nonShiftRegularHours * 8).ToString("N2") )h
                                 </small>
                             </div>
                         </div>
@@ -256,34 +254,49 @@
                                     </thead>
                                     <tbody>
                                         <tr>
-                                            <td>Regular Assignments</td>
-                                            <td class="text-end"><strong>@plan1.Assignments.Count</strong></td>
+                                            <td>Used Type</td>
+                                            <td class="text-end">
+                                                <strong>@(plan1.RequiredOvertimeHours > 0 ? "Non Shift & Overtime" : "Non Shift")</strong>
+                                            </td>
                                         </tr>
                                         <tr>
-                                            <td>Overtime Assignments</td>
-                                            <td class="text-end text-warning"><strong>@plan1.OvertimeAssignments.Count</strong></td>
+                                            <td>Total Workers Required</td>
+                                            <td class="text-end">
+                                                @{
+                                                    // Calculate using the same logic as Line-wise Worker Allocation Summary
+                                                    var plan1LineGroups = plan1.Assignments.GroupBy(a => a.LineId);
+                                                    var plan1TotalWorkers = 0;
+                                                    foreach(var lg in plan1LineGroups)
+                                                    {
+                                                        var regularMaxWorkers = lg.Max(a => a.ActualAllocatedWorkers);
+                                                        plan1TotalWorkers += regularMaxWorkers;
+                                                    }
+                                                }
+                                                <strong>@plan1TotalWorkers</strong>
+                                            </td>
                                         </tr>
                                         <tr>
-                                            <td>Total Assigned Quantity</td>
-                                            <td class="text-end"><strong>@((plan1.Assignments.Sum(a => a.AssignedQuantity) + plan1.OvertimeAssignments.Sum(a => a.AssignedQuantity)).ToString("N0"))</strong></td>
+                                            <td>Required Overtime Hours</td>
+                                            <td class="text-end text-info"><strong>@plan1.RequiredOvertimeHours.ToString("N2")</strong> hours</td>
                                         </tr>
-                                        <tr>
-                                            <td>Regular Hours Used</td>
-                                            <td class="text-end"><strong>@plan1.Assignments.Sum(a => a.PlannedHours + a.ChangeoverHours).ToString("N2")</strong></td>
-                                        </tr>
-                                        <tr>
-                                            <td>Overtime Hours Used</td>
-                                            <td class="text-end text-warning"><strong>@plan1.TotalOvertimeUsed.ToString("N2") / @plan1.TotalOvertimeBudget.ToString("N2")</strong></td>
-                                        </tr>
+                                        @{
+                                            var totalUsed = plan1.Assignments.Sum(a => a.PlannedHours + a.ChangeoverHours);
+                                            var totalCapacityHours = plan1.TotalCapacityHours;
+                                            var availableHours = totalCapacityHours - totalUsed;
+                                        }
+
+                                        @if (availableHours > 0 && plan1.RequiredOvertimeHours == 0)
+                                        {
+                                            <tr>
+                                                <td>Idle Hours Available</td>
+                                                <td class="text-end"><strong>@availableHours.ToString("N2")</strong> hours</td>
+                                            </tr>
+                                        }
                                         <tr>
                                             <td>Unassigned Models</td>
                                             <td class="text-end @(plan1.UnassignedModels.Any() ? "text-danger" : "text-success")">
                                                 <strong>@plan1.UnassignedModels.Count (@plan1.UnassignedModels.Sum(u => u.UnassignedQuantity).ToString("N0") units)</strong>
                                             </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Workers Optimized</td>
-                                            <td class="text-end"><strong>@(plan1.WorkerOptimization?.TotalWorkersSaved ?? 0)</strong></td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -299,24 +312,74 @@
                                     </thead>
                                     <tbody>
                                         <tr>
-                                            <td>Total Assignments</td>
-                                            <td class="text-end"><strong>@plan2.Assignments.Count</strong></td>
+                                            <td>Used Shifts</td>
+                                            <td class="text-end">
+                                                @{
+                                                    var usedShifts = plan2.Assignments.GroupBy(a => a.AssignedShift).Select(g => g.Key).ToList();
+                                                }
+                                                <strong>@string.Join(", ", usedShifts)</strong>
+                                            </td>
                                         </tr>
                                         <tr>
-                                            <td>Overtime Assignments</td>
-                                            <td class="text-end text-muted"><strong>N/A</strong></td>
+                                            <td>Total Workers Required</td>
+                                            <td class="text-end">
+                                                @{
+                                                    // Calculate using the same logic as Line-wise Worker Allocation Summary
+                                                    var plan2LineGroups = plan2.Assignments.GroupBy(a => a.LineId);
+                                                    var plan2TotalWorkers = 0;
+                                                    foreach(var lg in plan2LineGroups)
+                                                    {
+                                                        var shift1MaxWorkers = lg.Where(a => a.AssignedShift == ProductionPlanning.Models.WorkType.Shift1).Max(a => (int?)a.ActualAllocatedWorkers) ?? 0;
+                                                        var shift2MaxWorkers = lg.Where(a => a.AssignedShift == ProductionPlanning.Models.WorkType.Shift2).Max(a => (int?)a.ActualAllocatedWorkers) ?? 0;
+                                                        var shift3MaxWorkers = lg.Where(a => a.AssignedShift == ProductionPlanning.Models.WorkType.Shift3).Max(a => (int?)a.ActualAllocatedWorkers) ?? 0;
+                                                        plan2TotalWorkers += shift1MaxWorkers + shift2MaxWorkers + shift3MaxWorkers;
+                                                    }
+                                                }
+                                                <strong>@plan2TotalWorkers</strong>
+                                            </td>
                                         </tr>
                                         <tr>
-                                            <td>Assigned Quantity</td>
-                                            <td class="text-end"><strong>@plan2.Assignments.Sum(a => a.AssignedQuantity).ToString("N0")</strong></td>
-                                        </tr>
-                                        <tr>
-                                            <td>Shift 1 Hours Used</td>
-                                            <td class="text-end"><strong>@plan2.Assignments.Where(a => a.AssignedShift == ProductionPlanning.Models.WorkType.Shift1).Sum(a => a.PlannedHours + a.ChangeoverHours).ToString("N2")</strong></td>
-                                        </tr>
-                                        <tr>
-                                            <td>Shift 2&3 Hours Used</td>
-                                            <td class="text-end"><strong>@plan2.Assignments.Where(a => a.AssignedShift != ProductionPlanning.Models.WorkType.Shift1).Sum(a => a.PlannedHours + a.ChangeoverHours).ToString("N2")</strong></td>
+                                            <td>Idle Hours Available</td>
+                                            <td class="text-end text-muted">
+                                                @{
+                                                    // Get which shifts are actually being used (use different variable name)
+                                                    var activeShifts = plan2.Assignments.GroupBy(a => a.AssignedShift).Select(g => g.Key).ToList();
+                                                    
+                                                    // Recalculate shift capacities (need access to HariKerja data)
+                                                    var hariKerja = ViewBag.Results?.HariKerja;
+                                                    var usedShiftCapacity = 0.0;
+                                                    
+                                                    if(hariKerja != null)
+                                                    {
+                                                        foreach(var shift in activeShifts)
+                                                        {
+                                                            double shiftCapacityPerLine = 0.0;
+                                                            
+                                                            if(shift == ProductionPlanning.Models.WorkType.Shift1)
+                                                            {
+                                                                shiftCapacityPerLine = ((hariKerja.TotalSeninKamis * 458) + (hariKerja.TotalJumat * 418)) / 60.0;
+                                                            }
+                                                            else if(shift == ProductionPlanning.Models.WorkType.Shift2)
+                                                            {
+                                                                shiftCapacityPerLine = ((hariKerja.TotalSeninKamis + hariKerja.TotalJumat) * 398) / 60.0;
+                                                            }
+                                                            else if(shift == ProductionPlanning.Models.WorkType.Shift3)
+                                                            {
+                                                                shiftCapacityPerLine = ((hariKerja.TotalSeninKamis + hariKerja.TotalJumat) * 398) / 60.0;
+                                                            }
+                                                            
+                                                            usedShiftCapacity += shiftCapacityPerLine * 8; // multiply by 8 lines
+                                                        }
+                                                    }
+                                                    
+                                                    // Calculate hours used in those shifts only
+                                                    var totalUsedHours = plan2.Assignments.Sum(a => a.PlannedHours + a.ChangeoverHours);
+
+                                                    // Idle hours = capacity of used shifts - actual used hours
+                                                    var idleHours = usedShiftCapacity - totalUsedHours;
+                                                }
+                                                <strong>@idleHours.ToString("N2")</strong> hours
+                                            </td>
                                         </tr>
                                         <tr>
                                             <td>Unassigned Models</td>
@@ -324,55 +387,10 @@
                                                 <strong>@plan2.UnassignedModels.Count (@plan2.UnassignedModels.Sum(u => u.UnassignedQuantity).ToString("N0") units)</strong>
                                             </td>
                                         </tr>
-                                        <tr>
-                                            <td>Workers Optimized</td>
-                                            <td class="text-end"><strong>@(plan2.WorkerOptimization?.TotalWorkersSaved ?? 0)</strong></td>
-                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="alert @(plan1.UnassignedModels.Sum(u => u.UnassignedQuantity) <= plan2.UnassignedModels.Sum(u => u.UnassignedQuantity) ? "alert-info" : "alert-warning") mt-3">
-                        <h6 class="alert-heading"><i class="fas fa-lightbulb"></i> Recommendation</h6>
-                        @{
-                            var plan1Unassigned = plan1.UnassignedModels.Sum(u => u.UnassignedQuantity);
-                            var plan2Unassigned = plan2.UnassignedModels.Sum(u => u.UnassignedQuantity);
-                            var betterMethod = plan1Unassigned <= plan2Unassigned ? "NonShift + Overtime" : "Multi-Shift";
-                            
-                            var overtimeUtilization = plan1.TotalOvertimeBudget > 0 ? (plan1.TotalOvertimeUsed / plan1.TotalOvertimeBudget) * 100 : 0;
-                        }
-                        <p class="mb-2">
-                            <strong>@betterMethod</strong> method shows better results with fewer unassigned units (@(plan1Unassigned <= plan2Unassigned ? plan1Unassigned : plan2Unassigned) vs @(plan1Unassigned > plan2Unassigned ? plan1Unassigned : plan2Unassigned)).
-                        </p>
-                        @if(betterMethod == "NonShift + Overtime")
-                        {
-                            <div class="row">
-                                <div class="col-md-8">
-                                    <small class="text-muted">
-                                        • Regular assignments: <strong>@plan1.Assignments.Count</strong> allocations<br>
-                                        • Overtime assignments: <strong>@plan1.OvertimeAssignments.Count</strong> allocations using <strong>@plan1.TotalOvertimeUsed.ToString("N1")</strong>h of @plan1.TotalOvertimeBudget.ToString("N1")h budget<br>
-                                        • Overtime utilization: <strong>@overtimeUtilization.ToString("N1")%</strong>
-                                    </small>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="progress" style="height: 20px;">
-                                        <div class="progress-bar @(overtimeUtilization > 80 ? "bg-warning" : "bg-info")" role="progressbar" 
-                                            style="width: @overtimeUtilization.ToString("N1")%">
-                                            @overtimeUtilization.ToString("N1")%
-                                        </div>
-                                    </div>
-                                    <small class="text-muted">Overtime Budget Usage</small>
-                                </div>
-                            </div>
-                        }
-                        else
-                        {
-                            <small class="text-muted">
-                                Multi-shift provides better capacity distribution across shifts without requiring overtime.
-                            </small>
-                        }
                     </div>
                 </div>
             </div>

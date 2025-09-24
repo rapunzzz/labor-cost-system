@@ -14,7 +14,7 @@ namespace LaborSystemServer.Service
     {
         private readonly ApplicationDBContext _context;
         private readonly ILogger<ProductionPlanningService> _logger;
-        private const double CHANGEOVER_TIME_HOURS = 15.0 / 60.0; // 15 minutes = 0.25 hours
+        private const double CHANGEOVER_TIME_HOURS = 15.0 / 60.0; 
         
         public ProductionPlanningService(ApplicationDBContext context, ILogger<ProductionPlanningService> logger)
         {
@@ -48,11 +48,19 @@ namespace LaborSystemServer.Service
                 TotalCapacityHours = lines.Count * shiftCapacities.Values.Sum(),
                 Assignments = new List<ProductionAssignment>(),
                 UnassignedModels = new List<UnassignedModel>(),
-                ShiftCapacities = shiftCapacities
+                ShiftCapacities = shiftCapacities,
+                LineCount = lines.Count
             };
 
             // Calculate gap
             result.CapacityGap = result.TotalCapacityHours - result.TotalDemandHours;
+            
+            // For NonShift method, calculate required overtime upfront
+            if (method == AllocationMethod.NonShiftWithOvertime)
+            {
+                var regularCapacity = lines.Count * shiftCapacities[WorkType.NonShift];
+                result.RequiredOvertimeHours = Math.Max(0, result.TotalDemandHours - regularCapacity);
+            }
             
             // Allocate models based on method
             if (method == AllocationMethod.NonShiftWithOvertime)
@@ -69,13 +77,15 @@ namespace LaborSystemServer.Service
             // Save assignments to database
             if (result.Assignments.Any())
             {
-                Console.WriteLine($"Test Count {result.Assignments.Count}");
+                Console.WriteLine($"Regular assignments: {result.Assignments.Count}");
                 _context.ProductionAssignments.AddRange(result.Assignments);
             }
 
             if (result.OvertimeAssignments.Any())
             {
-                Console.WriteLine($"Test Count {result.OvertimeAssignments.Count}");
+                Console.WriteLine($"Overtime assignments: {result.OvertimeAssignments.Count}");
+                Console.WriteLine($"Total overtime hours used: {result.ActualOvertimeHours:F2}");
+                Console.WriteLine($"Required overtime hours: {result.RequiredOvertimeHours:F2}");
                 _context.OvertimeProductionAssignments.AddRange(result.OvertimeAssignments);
             }
 
@@ -253,12 +263,14 @@ namespace LaborSystemServer.Service
             List<OptimizedLineCapacity> optimizedCapacities)
         {
             var regularHoursPerLine = shiftCapacities[WorkType.NonShift];
-            const double totalOvertimeBudget = 500.0;
-            var remainingOvertimeBudget = totalOvertimeBudget;
+            // var totalRegularCapacity = lines.Count * regularHoursPerLine;
+            // var totalDemand = models.Sum(m => m.TotalWorkHours);
+            
+            // Calculate required overtime hours
+            // var capacityShortage = Math.Max(0, totalDemand - totalRegularCapacity);
             
             var lineUtilization = lines.ToDictionary(l => l.Id, l => 0.0);
             var lineAssignedModels = lines.ToDictionary(l => l.Id, l => new List<string>());
-            var unassignedModels = new List<ModelData>();
 
             // PHASE 1: Allocate to regular hours first
             foreach (var model in models)
@@ -322,112 +334,30 @@ namespace LaborSystemServer.Service
                         }
                     }
 
-                    if (!assigned) break; // No more regular hours available
-                }
-
-                // If there's remaining quantity, add to unassigned for overtime processing
-                if (remainingQuantity > 0)
-                {
-                    unassignedModels.Add(new ModelData
-                    {
-                        Id = model.Id,
-                        ModelName = model.ModelName,
-                        Quantity = remainingQuantity,
-                        ModelReference = model.ModelReference,
-                        ModelReferenceId = model.ModelReferenceId,
-                        Month = model.Month,
-                        Year = model.Year
-                    });
-                }
-            }
-
-            // PHASE 2: Process unassigned models with overtime
-            var overtimeLineAssignedModels = lines.ToDictionary(l => l.Id, l => new List<string>());
-            
-            foreach (var unassignedModel in unassignedModels)
-            {
-                if (remainingOvertimeBudget <= 0) break;
-
-                var remainingQuantity = unassignedModel.Quantity;
-                var modelWorkHoursPerUnit = unassignedModel.TotalWorkHours / unassignedModel.Quantity;
-
-                while (remainingQuantity > 0 && remainingOvertimeBudget > 0)
-                {
-                    var suitableLines = lines
-                        .Where(l => GetLineCapacity(l, WorkType.NonShift, optimizedCapacities) >= unassignedModel.ModelReference.HeadCount)
-                        .OrderBy(l => GetLineCapacity(l, WorkType.NonShift, optimizedCapacities))
-                        .ThenBy(l => result.OvertimeAssignments.Where(oa => oa.LineId == l.Id).Sum(oa => oa.PlannedHours + oa.ChangeoverHours))
-                        .ToList();
-
-                    var assigned = false;
-                    foreach (var line in suitableLines)
-                    {
-                        var lineCapacity = GetLineCapacity(line, WorkType.NonShift, optimizedCapacities);
-                        var changeoverTime = overtimeLineAssignedModels[line.Id].Count == 0 ? 0.0 : CHANGEOVER_TIME_HOURS;
-                        var hoursNeeded = modelWorkHoursPerUnit + changeoverTime;
-                        
-                        if (hoursNeeded > remainingOvertimeBudget) continue;
-
-                        var maxUnitsCanFit = (int)Math.Floor((remainingOvertimeBudget - changeoverTime) / modelWorkHoursPerUnit);
-                        var unitsToAssign = Math.Min(remainingQuantity, maxUnitsCanFit);
-                        
-                        if (unitsToAssign > 0)
-                        {
-                            var plannedHours = unitsToAssign * modelWorkHoursPerUnit;
-                            var totalHoursWithChangeover = plannedHours + changeoverTime;
-                            var surplusWorkers = lineCapacity - unassignedModel.ModelReference.HeadCount;
-
-                            var overtimeAssignment = new OvertimeProductionAssignment
-                            {
-                                ModelDataId = unassignedModel.Id,
-                                LineId = line.Id,
-                                AssignedQuantity = unitsToAssign,
-                                PlannedHours = plannedHours,
-                                ChangeoverHours = changeoverTime,
-                                RequiredWorkers = unassignedModel.ModelReference.HeadCount,
-                                ActualAllocatedWorkers = lineCapacity,
-                                SurplusWorkers = surplusWorkers,
-                                DefaultCapacity = line.DefaultCapacity,
-                                CreatedDate = DateTime.UtcNow
-                            };
-
-                            result.OvertimeAssignments.Add(overtimeAssignment);
-                            remainingOvertimeBudget -= totalHoursWithChangeover;
-                            
-                            if (!overtimeLineAssignedModels[line.Id].Contains(unassignedModel.ModelName))
-                            {
-                                overtimeLineAssignedModels[line.Id].Add(unassignedModel.ModelName);
-                            }
-
-                            remainingQuantity -= unitsToAssign;
-                            assigned = true;
-                            break;
-                        }
-                    }
-
                     if (!assigned) break;
                 }
 
-                // If still have remaining quantity after overtime, add to truly unassigned
+                // If there's remaining quantity, add to unassigned list to show overtime requirement
                 if (remainingQuantity > 0)
                 {
-                    var reason = remainingOvertimeBudget <= 0 
-                        ? "Overtime budget exhausted (500h total budget used)"
-                        : "Insufficient overtime capacity";
-                        
+                    var remainingHours = remainingQuantity * (model.TotalWorkHours / model.Quantity);
                     result.UnassignedModels.Add(new UnassignedModel
                     {
-                        ModelName = unassignedModel.ModelName,
+                        ModelName = model.ModelName,
                         UnassignedQuantity = remainingQuantity,
-                        RequiredHours = remainingQuantity * modelWorkHoursPerUnit,
-                        RequiredHeadCount = unassignedModel.ModelReference.HeadCount,
-                        Reason = reason
+                        RequiredHours = remainingHours,
+                        RequiredHeadCount = model.ModelReference.HeadCount,
+                        Reason = "Requires overtime allocation - Regular capacity exceeded"
                     });
                 }
             }
-            
-            result.TotalOvertimeUsed = totalOvertimeBudget - remainingOvertimeBudget;
-            result.RemainingOvertimeBudget = remainingOvertimeBudget;
+
+            // Update result with overtime calculations
+            var totalUnassignedHours = result.UnassignedModels.Sum(u => u.RequiredHours);
+            result.RequiredOvertimeHours = totalUnassignedHours;
+            result.ActualOvertimeHours = 0; // No actual overtime assignments, just showing requirement
+            result.TotalOvertimeUsed = 0;
+            result.RemainingOvertimeBudget = 0; // Not applicable
         }
 
         private Dictionary<int, Dictionary<WorkType, double>> InitializeLineShiftUtilization(List<LineConfiguration> lines)
@@ -639,11 +569,12 @@ namespace LaborSystemServer.Service
     {
         public int Month { get; set; }
         public int Year { get; set; }
-        public AllocationMethod AllocationMethod { get; set; } // NEW
+        public AllocationMethod AllocationMethod { get; set; }
         public double TotalWorkHoursPerLine { get; set; }
         public double TotalDemandHours { get; set; }
         public double TotalCapacityHours { get; set; }
         public double CapacityGap { get; set; }
+        public int LineCount { get; set; }
         public List<ProductionAssignment> Assignments { get; set; } = new();
         public List<OvertimeProductionAssignment> OvertimeAssignments { get; set; } = new();
         public List<UnassignedModel> UnassignedModels { get; set; } = new();
@@ -654,14 +585,12 @@ namespace LaborSystemServer.Service
         
         public ShiftUtilizationSummary ShiftUtilization => CalculateShiftUtilization();
         
+        // Updated overtime properties for NonShift method
         public double TotalOvertimeUsed { get; set; } = 0.0;
-        public double RemainingOvertimeBudget { get; set; } = 0.0;
-        public double TotalOvertimeBudget => 500.0; // Constant budget
+        public double RequiredOvertimeHours { get; set; } = 0.0; 
+        public double ActualOvertimeHours { get; set; } = 0.0;   
+        public double RemainingOvertimeBudget { get; set; } = 0.0; 
 
-        // NEW: Property untuk menunjukkan overtime hours jika menggunakan NonShift method
-        public double OvertimeHours => AllocationMethod == AllocationMethod.NonShiftWithOvertime && 
-                                    ShiftCapacities.ContainsKey(WorkType.NonShift) ? 500.0 : 0.0;
-        
         private ShiftUtilizationSummary CalculateShiftUtilization()
         {
             var summary = new ShiftUtilizationSummary();
@@ -675,9 +604,8 @@ namespace LaborSystemServer.Service
             {
                 var shiftAssignments = Assignments.Where(a => a.AssignedShift == shift).ToList();
                 var totalHours = shiftAssignments.Sum(a => a.PlannedHours + a.ChangeoverHours);
-                var maxCapacity = ShiftCapacities.GetValueOrDefault(shift, 0) * 8;
-                Console.WriteLine($"Test print total hours {totalHours}");
-                Console.WriteLine($"Test print max capacity {maxCapacity}");
+                var maxCapacity = ShiftCapacities.GetValueOrDefault(shift, 0) * LineCount;
+
                 summary.ShiftUtilizations[shift] = new ShiftUtilizationInfo
                 {
                     Shift = shift,

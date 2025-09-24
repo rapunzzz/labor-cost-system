@@ -268,3 +268,4 @@ C:\Users\legion\OneDrive\Documents\Magang PMI\LaborSystem\LaborSystemServer\obj\
 C:\Users\legion\OneDrive\Documents\Magang PMI\LaborSystem\LaborSystemServer\obj\Debug\net9.0\ref\LaborSystemServer.dll
 C:\Users\legion\OneDrive\Documents\Magang PMI\LaborSystem\LaborSystemServer\obj\Debug\net9.0\compressed\ukck3i16pv-xhua1krugi.gz
 C:\Users\legion\OneDrive\Documents\Magang PMI\LaborSystem\LaborSystemServer\obj\Debug\net9.0\compressed\xaw3jgw634-xhua1krugi.gz
+C:\Users\legion\OneDrive\Documents\Magang PMI\LaborSystem\LaborSystemServer\obj\Debug\net9.0\LaborSystemServer.sourcelink.json
