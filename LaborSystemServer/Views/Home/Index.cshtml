@@ -292,12 +292,6 @@
                                                 <td class="text-end"><strong>@availableHours.ToString("N2")</strong> hours</td>
                                             </tr>
                                         }
-                                        <tr>
-                                            <td>Unassigned Models</td>
-                                            <td class="text-end @(plan1.UnassignedModels.Any() ? "text-danger" : "text-success")">
-                                                <strong>@plan1.UnassignedModels.Count (@plan1.UnassignedModels.Sum(u => u.UnassignedQuantity).ToString("N0") units)</strong>
-                                            </td>
-                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -379,12 +373,6 @@
                                                     var idleHours = usedShiftCapacity - totalUsedHours;
                                                 }
                                                 <strong>@idleHours.ToString("N2")</strong> hours
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Unassigned Models</td>
-                                            <td class="text-end @(plan2.UnassignedModels.Any() ? "text-danger" : "text-success")">
-                                                <strong>@plan2.UnassignedModels.Count (@plan2.UnassignedModels.Sum(u => u.UnassignedQuantity).ToString("N0") units)</strong>
                                             </td>
                                         </tr>
                                     </tbody>
