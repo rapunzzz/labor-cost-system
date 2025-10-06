@@ -17,27 +17,20 @@ namespace ProductionPlanning.Models
         MultiShift = 1
     }
 
-    // Model untuk data produksi (demand)
     public class ModelData
     {
         [Key]
         public int Id { get; set; }
-        
         [Required]
         public string ModelName { get; set; }
-        
         public int Quantity { get; set; }
-        
-        public string Month { get; set; } // e.g., "09"
-        
+        public string Month { get; set; }
         public int Year { get; set; }
-        
         public int ModelReferenceId { get; set; }
         
         [ForeignKey("ModelReferenceId")]
         public virtual ModelReference ModelReference { get; set; }
         
-        // Calculated property for total work hours
         [NotMapped]
         public double TotalWorkHours => ((ModelReference?.SUT ?? 0) / 3600.0) * Quantity;
         
@@ -47,20 +40,16 @@ namespace ProductionPlanning.Models
 
     }
 
-    // Master data untuk model specifications
     public class ModelReference
     {
         [Key]
-        public int Id { get; set; } // Primary Key baru
-        
+        public int Id { get; set; }
         [Required]
-        public string ModelName { get; set; } // Index biasa, bukan Primary Key
-        
+        public string ModelName { get; set; }
         [Required]
-        public double SUT { get; set; } // Standard Unit Time (seconds per unit)
-        
+        public double SUT { get; set; }
         [Required]
-        public int HeadCount { get; set; } // Required workers
+        public int HeadCount { get; set; }
         
         public virtual ICollection<ModelData> ModelData { get; set; } = new List<ModelData>();
     }
@@ -69,13 +58,10 @@ namespace ProductionPlanning.Models
     {
         [Key]
         public int Id { get; set; }
-        
         [Required]
-        public string LineName { get; set; } // e.g., "LINE_GP_1", "LINE_AUTO_1"
-        
+        public string LineName { get; set; }
         [Required]
-        public int DefaultCapacity { get; set; } // Default worker capacity sebagai referensi
-        
+        public int DefaultCapacity { get; set; }
         public bool IsActive { get; set; } = true;
         
         public virtual ICollection<ProductionAssignment> ProductionAssignments { get; set; } = new List<ProductionAssignment>();
@@ -88,61 +74,37 @@ namespace ProductionPlanning.Models
     {
         [Key]
         public int Id { get; set; }
-        
         [Required]
         public WorkType WorkType { get; set; }
-        
         [Required]
-        public int RegularDayMinutes { get; set; } // Senin-Kamis
-        
+        public TimeSpan StartTime { get; set; }
         [Required]
-        public int FridayMinutes { get; set; } // Jumat (biasanya sama kecuali Shift1)
-                
-        public bool IsActive { get; set; } = true;
-        
-        // Static method untuk mendapatkan minutes per shift
-        public static (int regularMinutes, int fridayMinutes) GetWorkMinutesPerShift(WorkType shiftType)
-        {
-            return shiftType switch
-            {
-                WorkType.NonShift => (473, 433),
-                WorkType.Shift1 => (458, 418), // Jumat berkurang 40 menit karena ishoma + jumatan
-                WorkType.Shift2 => (398, 398), // Shift 2&3 tidak terpengaruh jumatan
-                WorkType.Shift3 => (398, 398),
-                _ => (0, 0)
-            };
-        }
+        public TimeSpan EndTime { get; set; }  
+
+        public virtual ICollection<WorkTimeDeduction> TimeDeductions { get; set; } = new List<WorkTimeDeduction>();
     }
 
     public class OptimizedLineCapacity
     {
         [Key]
         public int Id { get; set; }
-        
         [Required]
         public int LineConfigurationId { get; set; }
-        
         [Required]
-        public string Month { get; set; } // e.g., "09"
-        
+        public string Month { get; set; }
         [Required]
         public int Year { get; set; }
-
         [Required]
         public WorkType WorkType { get; set; }
-        
         [Required]
-        public int RequiredWorkers { get; set; } // Worker yang benar-benar dibutuhkan
-        
+        public int RequiredWorkers { get; set; }
         public string Notes { get; set; } 
-        
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
         public DateTime? ModifiedDate { get; set; }
         
         [ForeignKey("LineConfigurationId")]
         public virtual LineConfiguration LineConfiguration { get; set; }
         
-        // Calculated property
         [NotMapped]
         public int WorkersSaved => LineConfiguration?.DefaultCapacity - RequiredWorkers ?? 0;
     }
@@ -151,29 +113,18 @@ namespace ProductionPlanning.Models
     {
         [Key]
         public int Id { get; set; }
-        
         [Required]
         public int ModelDataId { get; set; }
-        
         [Required]
         public int LineId { get; set; }
-        
         public int AssignedQuantity { get; set; }
-        
         public double PlannedHours { get; set; }
-        
         public double ChangeoverHours { get; set; }
-        
         public int RequiredWorkers { get; set; }
-        
         public int ActualAllocatedWorkers { get; set; }
-
         public int DefaultCapacity { get; set; }
-        
         public int SurplusWorkers { get; set; }
-        
         public WorkType AssignedShift { get; set; } = WorkType.Shift1;
-        
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
         public DateTime? ModifiedDate { get; set; }
         
@@ -188,27 +139,17 @@ namespace ProductionPlanning.Models
     {
         [Key]
         public int Id { get; set; }
-        
         [Required]
         public int ModelDataId { get; set; }
-        
         [Required]
         public int LineId { get; set; }
-        
         public int AssignedQuantity { get; set; }
-        
         public double PlannedHours { get; set; }
-        
         public double ChangeoverHours { get; set; }
-        
         public int RequiredWorkers { get; set; }
-        
         public int ActualAllocatedWorkers { get; set; }
-
         public int DefaultCapacity { get; set; }
-        
         public int SurplusWorkers { get; set; }
-        
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
         public DateTime? ModifiedDate { get; set; }
         
@@ -217,5 +158,26 @@ namespace ProductionPlanning.Models
         
         [ForeignKey("LineId")]
         public virtual LineConfiguration LineConfiguration { get; set; }
+    }
+
+    public class WorkTimeDeduction
+    {
+        [Key]
+        public int Id { get; set; }
+        [Required]
+        public string Name { get; set; }
+        [Required]
+        public TimeSpan StartTime { get; set; }
+        [Required]
+        public TimeSpan EndTime { get; set; }
+        [Required]
+        public WorkType WorkType { get; set; }
+
+        public bool IsActive { get; set; } = true;
+        
+        [Required]
+        public int ShiftWorkConfigurationId { get; set; }
+        [ForeignKey("ShiftWorkConfigurationId")]
+        public virtual ShiftWorkConfiguration ShiftWorkConfiguration { get; set; }
     }
 }

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LaborSystemServer")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1a02cb02853526f89d28199b7d00c2994819eb27")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8df32e07cfc1643c799c63668029da46b79ec6a4")]
 [assembly: System.Reflection.AssemblyProductAttribute("LaborSystemServer")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LaborSystemServer")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

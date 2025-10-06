@@ -1,0 +1,67 @@
+<!-- Add Work Time Deduction Modal -->
+<div class="modal fade" id="addDeductionModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="addDeductionModalLabel">
+                    <i class="fas fa-plus-circle"></i> Add Time Deduction
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="CreateDeduction" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="DeductionShiftId" name="ShiftWorkConfigurationId" />
+                <input type="hidden" id="DeductionWorkType" name="WorkType" />
+                
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(ViewBag.DeductionError as string))
+                    {
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle"></i> @ViewBag.DeductionError
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label for="DeductionName" class="form-label">Deduction Name</label>
+                        <input type="text" name="Name" id="DeductionName" class="form-control" 
+                               placeholder="e.g., Break Time, Preparation" required maxlength="100" />
+                        <div class="form-text">
+                            <i class="fas fa-info-circle"></i> Name of the time deduction (e.g., Break, Lunch, Preparation)
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="DeductionStartTime" class="form-label">Start Time</label>
+                            <input type="time" name="StartTime" id="DeductionStartTime" class="form-control" required />
+                            <div class="form-text">When does it start?</div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="DeductionEndTime" class="form-label">End Time</label>
+                            <input type="time" name="EndTime" id="DeductionEndTime" class="form-control" required />
+                            <div class="form-text">When does it end?</div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-lightbulb"></i> <strong>Examples:</strong>
+                        <ul class="mb-0 mt-2 small">
+                            <li>Morning Break: 10:00 - 10:15 (15 min)</li>
+                            <li>Lunch Break: 12:00 - 13:00 (60 min)</li>
+                            <li>Preparation Time: 07:30 - 08:00 (30 min)</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Add Deduction
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

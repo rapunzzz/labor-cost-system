@@ -38,7 +38,7 @@ namespace LaborSystemServer.Service
         public List<ModelData> ReadExcel(Stream fileStream, int month, int year)
         {
             var result = new List<ModelData>();
-            ExcelPackage.License.SetNonCommercialPersonal("Thaariq");
+            ExcelPackage.License.SetNonCommercialPersonal("PMI");
 
             using var package = new ExcelPackage(fileStream);
             var worksheet = package.Workbook.Worksheets[WORKSHEET_NAME];

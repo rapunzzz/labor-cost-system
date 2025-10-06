@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DataAccess.Migrations
 {
     [DbContext(typeof(ApplicationDBContext))]
-    [Migration("20250917024922_NewModels")]
-    partial class NewModels
+    [Migration("20251002021415_AddIsActive")]
+    partial class AddIsActive
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -236,14 +236,11 @@ namespace DataAccess.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("FridayMinutes")
-                        .HasColumnType("INTEGER");
+                    b.Property<TimeSpan>("EndTime")
+                        .HasColumnType("TEXT");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("RegularDayMinutes")
-                        .HasColumnType("INTEGER");
+                    b.Property<TimeSpan>("StartTime")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("WorkType")
                         .HasColumnType("INTEGER");
@@ -251,6 +248,38 @@ namespace DataAccess.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("ShiftWorkConfigurations");
+                });
+
+            modelBuilder.Entity("ProductionPlanning.Models.WorkTimeDeduction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<TimeSpan>("EndTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ShiftWorkConfigurationId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<TimeSpan>("StartTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("WorkType")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShiftWorkConfigurationId");
+
+                    b.ToTable("WorkTimeDeductions");
                 });
 
             modelBuilder.Entity("ProductionPlanning.Models.ModelData", b =>
@@ -313,6 +342,17 @@ namespace DataAccess.Migrations
                     b.Navigation("ModelData");
                 });
 
+            modelBuilder.Entity("ProductionPlanning.Models.WorkTimeDeduction", b =>
+                {
+                    b.HasOne("ProductionPlanning.Models.ShiftWorkConfiguration", "ShiftWorkConfiguration")
+                        .WithMany("TimeDeductions")
+                        .HasForeignKey("ShiftWorkConfigurationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ShiftWorkConfiguration");
+                });
+
             modelBuilder.Entity("ProductionPlanning.Models.LineConfiguration", b =>
                 {
                     b.Navigation("OptimizedCapacities");
@@ -332,6 +372,11 @@ namespace DataAccess.Migrations
             modelBuilder.Entity("ProductionPlanning.Models.ModelReference", b =>
                 {
                     b.Navigation("ModelData");
+                });
+
+            modelBuilder.Entity("ProductionPlanning.Models.ShiftWorkConfiguration", b =>
+                {
+                    b.Navigation("TimeDeductions");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,0 +1,60 @@
+<!-- Edit Work Time Deduction Modal -->
+<div class="modal fade" id="editDeductionModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit"></i> Edit Time Deduction
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editDeductionForm" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="EditDeductionId" name="Id" />
+                <input type="hidden" id="EditDeductionShiftId" name="ShiftWorkConfigurationId" />
+                <input type="hidden" id="EditDeductionWorkType" name="WorkType" />
+                
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(ViewBag.EditDeductionError as string))
+                    {
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle"></i> @ViewBag.EditDeductionError
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label for="EditDeductionName" class="form-label">Deduction Name</label>
+                        <input type="text" name="Name" id="EditDeductionName" class="form-control" 
+                               placeholder="e.g., Break Time, Preparation" required maxlength="100" />
+                        <div class="form-text">
+                            <i class="fas fa-info-circle"></i> Name of the time deduction
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="EditDeductionStartTime" class="form-label">Start Time</label>
+                            <input type="time" name="StartTime" id="EditDeductionStartTime" class="form-control" required />
+                            <div class="form-text">When does it start?</div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="EditDeductionEndTime" class="form-label">End Time</label>
+                            <input type="time" name="EndTime" id="EditDeductionEndTime" class="form-control" required />
+                            <div class="form-text">When does it end?</div>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save"></i> Update Deduction
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

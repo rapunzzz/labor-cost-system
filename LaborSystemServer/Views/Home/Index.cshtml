@@ -78,63 +78,39 @@
         var hariKerja = ViewBag.Results.HariKerja;
         
         // Calculate both NonShift and Multi-shift capacities
-        double nonShiftRegularHours = ((hariKerja.TotalSeninKamis * 473) + (hariKerja.TotalJumat * 433)) / 60.0;
-        double nonShiftTotalHours = (nonShiftRegularHours * 8);
-        
-        // Multi-shift calculations (existing)
-        double shift1Hours = ((hariKerja.TotalSeninKamis * 458) + (hariKerja.TotalJumat * 418)) / 60.0;
-        double shift2Hours = ((hariKerja.TotalSeninKamis + hariKerja.TotalJumat) * 398) / 60.0;
-        double shift3Hours = ((hariKerja.TotalSeninKamis + hariKerja.TotalJumat) * 398) / 60.0;
+        var shiftCapacities = ViewBag.ShiftCapacities as Dictionary<ProductionPlanning.Models.WorkType, double>;
+        double nonShiftRegularHours = shiftCapacities[ProductionPlanning.Models.WorkType.NonShift];
+        double shift1Hours = shiftCapacities[ProductionPlanning.Models.WorkType.Shift1];
+        double shift2Hours = shiftCapacities[ProductionPlanning.Models.WorkType.Shift2];
+        double shift3Hours = shiftCapacities[ProductionPlanning.Models.WorkType.Shift3];
+
         double totalHoursPerLineAllShifts = shift1Hours + shift2Hours + shift3Hours;
-        double totalHoursAllLinesAllShifts = totalHoursPerLineAllShifts * 8;
+        double totalHoursAllLinesAllShifts = totalHoursPerLineAllShifts * ViewBag.LineCount;
+        double nonShiftTotalHours = nonShiftRegularHours * ViewBag.LineCount;
         
         double totalDemandHours = results.Sum(r => r.TotalWorkHours);
         double capacityGapNonShift = nonShiftTotalHours - totalDemandHours;
         double capacityGapMultiShift = totalHoursAllLinesAllShifts - totalDemandHours;
 
         <div class="card shadow-sm mb-4">
-            <div class="card-header bg-info text-white">
+            <div class="card-header bg-primary text-white">
                 <h5 class="mb-0"><i class="fas fa-table"></i> Hasil Upload Excel - @ViewBag.Results.Month.ToString("D2")/@ViewBag.Results.Year</h5>
             </div>
             <div class="card-body">
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <div class="card text-center bg-success text-white">
-                            <div class="card-body">
-                                <h6>NonShift Capacity</h6>
-                                <h4>@nonShiftRegularHours.ToString("N2")</h4>
-                                <small>@hariKerja.TotalSeninKamis days (473min) + @hariKerja.TotalJumat days (433min)</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card text-center bg-primary text-white">
-                            <div class="card-body">
-                                <h6>Shift 1 Capacity</h6>
-                                <h4>@shift1Hours.ToString("N2")</h4>
-                                <small>@hariKerja.TotalSeninKamis days (458min) + @hariKerja.TotalJumat days (418min)</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card text-center bg-secondary text-white">
-                            <div class="card-body">
-                                <h6>Shift 2 & 3 Capacity</h6>
-                                <h4>@shift2Hours.ToString("N2")</h4>
-                                <small>@(hariKerja.TotalSeninKamis + hariKerja.TotalJumat) days × 398min each</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                @if(ViewBag.ShiftConfigurations != null)
+                {
+                    <partial name="_TimelineShift" />
+                }
                 
-                <div class="table-responsive">
+                <div class="table-responsive mt-5">
                     <table class="table table-bordered table-hover align-middle">
                         <thead class="table-light">
                             <tr>
                                 <th>No</th>
                                 <th>Model Name</th>
                                 <th>Quantity</th>
-                                <th>Total Hours (SUT × Qty)</th>
+                                <th>SUT (Seconds)</th>
+                                <th>Quantity x SUT (Hours)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -145,245 +121,175 @@
                                     <td>@counter</td>
                                     <td><strong>@item.ModelName</strong></td>
                                     <td class="text-end">@item.Quantity.ToString("N0")</td>
+                                    <td class="text-end">@item.ModelReference.SUT.ToString("N2")</td>
                                     <td class="text-end">@item.TotalWorkHours.ToString("N2")</td>
                                 </tr>
                                 counter++;
                             }
                         </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="2"class="text-start"><strong>Total</strong></td>
+                                <td class="text-end"> <strong>@results.Sum(r => r.Quantity).ToString("N0")</strong></td>
+                                <td class="text-end"> <strong>@results.Sum(r => r.ModelReference.SUT).ToString("N2")</strong></td>
+                                <td class="text-end"><strong>@totalDemandHours.ToString("N2")</strong></td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
 
-                <div class="row mt-4">
-                    <div class="col-md-6">
-                        <div class="card border-primary">
-                            <div class="card-header bg-primary text-white text-center">
-                                <h6 class="mb-0">Method 1: NonShift + Overtime</h6>
+            </div>
+
+            <div class="row g-4 mb-4">
+                <div class="col-md-6 col-lg-3">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-success text-white border-0 py-3">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-clock me-2 fs-5"></i>
+                                <h6 class="mb-0 fw-semibold">NonShift</h6>
                             </div>
-                            <div class="card-body text-center">
-                                <h5>@nonShiftTotalHours.ToString("N2") Hours</h5>
-                                <small class="text-muted">
-                                    Regular: @( (nonShiftRegularHours * 8).ToString("N2") )h
-                                </small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <small class="text-muted d-block mb-1">Available</small>
+                                    <h4 class="mb-0 text-success fw-bold">@((nonShiftRegularHours * ViewBag.LineCount).ToString("N2"))</h4>
+                                    <small class="text-muted">hours</small>
+                                </div>
+                                <div class="col-6 text-end">
+                                    <small class="text-muted d-block mb-1">Demand</small>
+                                    <h4 class="mb-0 fw-semibold">@totalDemandHours.ToString("N2")</h4>
+                                    <small class="text-muted">hours</small>
+                                </div>
+                            </div>
+                            <hr class="my-3">
+                            <div class="text-center">
+                                <small class="text-muted d-block mb-2">Working Days</small>
+                                <div class="d-flex justify-content-center gap-3">
+                                    <div class="px-3 py-2 bg-light rounded">
+                                        <div class="fw-bold text-success fs-5">@hariKerja.TotalSeninKamis</div>
+                                        <small class="text-muted">Mon-Thu</small>
+                                    </div>
+                                    <div class="px-3 py-2 bg-light rounded">
+                                        <div class="fw-bold text-success fs-5">@hariKerja.TotalJumat</div>
+                                        <small class="text-muted">Friday</small>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="card border-warning">
-                            <div class="card-header bg-warning text-dark text-center">
-                                <h6 class="mb-0">Method 2: Multi-Shift</h6>
+                </div>
+
+                <div class="col-md-6 col-lg-3">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-primary text-white border-0 py-3">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-sun me-2 fs-5"></i>
+                                <h6 class="mb-0 fw-semibold">Shift 1</h6>
                             </div>
-                            <div class="card-body text-center">
-                                <h5>@totalHoursAllLinesAllShifts.ToString("N2") Hours</h5>
-                                <small class="text-muted">
-                                    Shift1: @( (shift1Hours * 8).ToString("N2") )h + 
-                                    Shift2: @( (shift2Hours * 8).ToString("N2") )h + 
-                                    Shift3: @( (shift3Hours * 8).ToString("N2") )h
-                                </small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <small class="text-muted d-block mb-1">Available</small>
+                                    <h4 class="mb-0 text-primary fw-bold">@((shift1Hours * ViewBag.LineCount).ToString("N2"))</h4>
+                                    <small class="text-muted">hours</small>
+                                </div>
+                                <div class="col-6 text-end">
+                                    <small class="text-muted d-block mb-1">Demand</small>
+                                    <h4 class="mb-0 fw-semibold">@totalDemandHours.ToString("N2")</h4>
+                                    <small class="text-muted">hours</small>
+                                </div>
+                            </div>
+                            <hr class="my-3">
+                            <div class="text-center">
+                                <small class="text-muted d-block mb-2">Working Days</small>
+                                <div class="d-flex justify-content-center gap-3">
+                                    <div class="px-3 py-2 bg-light rounded">
+                                        <div class="fw-bold text-primary fs-5">@hariKerja.TotalSeninKamis</div>
+                                        <small class="text-muted">Mon-Thu</small>
+                                    </div>
+                                    <div class="px-3 py-2 bg-light rounded">
+                                        <div class="fw-bold text-primary fs-5">@hariKerja.TotalJumat</div>
+                                        <small class="text-muted">Friday</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6 col-lg-3">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-warning text-white border-0 py-3">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-cloud-sun me-2 fs-5"></i>
+                                <h6 class="mb-0 fw-semibold">Shift 2</h6>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <small class="text-muted d-block mb-1">Available</small>
+                                    <h4 class="mb-0 text-warning fw-bold">@((shift2Hours * ViewBag.LineCount).ToString("N2"))</h4>
+                                    <small class="text-muted">hours</small>
+                                </div>
+                                <div class="col-6 text-end">
+                                    <small class="text-muted d-block mb-1">Demand</small>
+                                    <h4 class="mb-0 fw-semibold">@totalDemandHours.ToString("N2")</h4>
+                                    <small class="text-muted">hours</small>
+                                </div>
+                            </div>
+                            <hr class="my-3">
+                            <div class="text-center">
+                                <small class="text-muted d-block mb-2">Working Days</small>
+                                <div class="px-4 py-2 bg-light rounded d-inline-block">
+                                    <div class="fw-bold text-warning fs-4">@(hariKerja.TotalSeninKamis + hariKerja.TotalJumat)</div>
+                                    <small class="text-muted">Mon - Fri</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6 col-lg-3">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-dark text-white border-0 py-3">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-moon me-2 fs-5"></i>
+                                <h6 class="mb-0 fw-semibold">Shift 3</h6>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <small class="text-muted d-block mb-1">Available</small>
+                                    <h4 class="mb-0 text-dark fw-bold">@((shift3Hours * ViewBag.LineCount).ToString("N2"))</h4>
+                                    <small class="text-muted">hours</small>
+                                </div>
+                                <div class="col-6 text-end">
+                                    <small class="text-muted d-block mb-1">Demand</small>
+                                    <h4 class="mb-0 fw-semibold">@totalDemandHours.ToString("N2")</h4>
+                                    <small class="text-muted">hours</small>
+                                </div>
+                            </div>
+                            <hr class="my-3">
+                            <div class="text-center">
+                                <small class="text-muted d-block mb-2">Working Days</small>
+                                <div class="px-4 py-2 bg-light rounded d-inline-block">
+                                    <div class="fw-bold text-dark fs-4">@(hariKerja.TotalSeninKamis + hariKerja.TotalJumat)</div>
+                                    <small class="text-muted">Mon - Fri</small>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
         </div>
     }
 
-    <!-- Production Plan Results Section -->
-    @if(ViewBag.ProductionPlan1 != null || ViewBag.ProductionPlan2 != null)
-    {
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0"><i class="fas fa-industry"></i> Production Planning Results Comparison</h5>
-            </div>
-            <div class="card-body">
-                <ul class="nav nav-tabs" id="productionPlanTabs" role="tablist">
-                    @if(ViewBag.ProductionPlan1 != null)
-                    {
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="nonshift-tab" data-bs-toggle="tab" data-bs-target="#nonshift-content" type="button" role="tab">
-                                <i class="fas fa-clock"></i> NonShift + Overtime
-                            </button>
-                        </li>
-                    }
-                    @if(ViewBag.ProductionPlan2 != null)
-                    {
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link @(ViewBag.ProductionPlan1 == null ? "active" : "")" id="multishift-tab" data-bs-toggle="tab" data-bs-target="#multishift-content" type="button" role="tab">
-                                <i class="fas fa-users"></i> Multi-Shift
-                            </button>
-                        </li>
-                    }
-                </ul>
-
-                <div class="tab-content mt-3" id="productionPlanTabsContent">
-                    @if(ViewBag.ProductionPlan1 != null)
-                    {
-                        var plan1 = ViewBag.ProductionPlan1 as LaborSystemServer.Service.ProductionPlanResult;
-                        <div class="tab-pane fade show active" id="nonshift-content" role="tabpanel">
-                            @await Html.PartialAsync("_ProductionPlanPartial", plan1)
-                        </div>
-                    }
-                    @if(ViewBag.ProductionPlan2 != null)
-                    {
-                        var plan2 = ViewBag.ProductionPlan2 as LaborSystemServer.Service.ProductionPlanResult;
-                        <div class="tab-pane fade @(ViewBag.ProductionPlan1 == null ? "show active" : "")" id="multishift-content" role="tabpanel">
-                            @await Html.PartialAsync("_ProductionPlanPartial", plan2)
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
-
-        @if(ViewBag.ProductionPlan1 != null && ViewBag.ProductionPlan2 != null)
-        {
-            var plan1 = ViewBag.ProductionPlan1 as LaborSystemServer.Service.ProductionPlanResult;
-            var plan2 = ViewBag.ProductionPlan2 as LaborSystemServer.Service.ProductionPlanResult;
-            
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-dark text-white">
-                    <h5 class="mb-0"><i class="fas fa-balance-scale"></i> Method Comparison Summary</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="table-responsive">
-                                <table class="table table-sm table-bordered">
-                                    <thead class="table-primary">
-                                        <tr>
-                                            <th colspan="2" class="text-center">NonShift + Overtime</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td>Used Type</td>
-                                            <td class="text-end">
-                                                <strong>@(plan1.RequiredOvertimeHours > 0 ? "Non Shift & Overtime" : "Non Shift")</strong>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Total Workers Required</td>
-                                            <td class="text-end">
-                                                @{
-                                                    // Calculate using the same logic as Line-wise Worker Allocation Summary
-                                                    var plan1LineGroups = plan1.Assignments.GroupBy(a => a.LineId);
-                                                    var plan1TotalWorkers = 0;
-                                                    foreach(var lg in plan1LineGroups)
-                                                    {
-                                                        var regularMaxWorkers = lg.Max(a => a.ActualAllocatedWorkers);
-                                                        plan1TotalWorkers += regularMaxWorkers;
-                                                    }
-                                                }
-                                                <strong>@plan1TotalWorkers</strong>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Required Overtime Hours</td>
-                                            <td class="text-end text-info"><strong>@plan1.RequiredOvertimeHours.ToString("N2")</strong> hours</td>
-                                        </tr>
-                                        @{
-                                            var totalUsed = plan1.Assignments.Sum(a => a.PlannedHours + a.ChangeoverHours);
-                                            var totalCapacityHours = plan1.TotalCapacityHours;
-                                            var availableHours = totalCapacityHours - totalUsed;
-                                        }
-
-                                        @if (availableHours > 0 && plan1.RequiredOvertimeHours == 0)
-                                        {
-                                            <tr>
-                                                <td>Idle Hours Available</td>
-                                                <td class="text-end"><strong>@availableHours.ToString("N2")</strong> hours</td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="table-responsive">
-                                <table class="table table-sm table-bordered">
-                                    <thead class="table-warning">
-                                        <tr>
-                                            <th colspan="2" class="text-center">Multi-Shift</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td>Used Shifts</td>
-                                            <td class="text-end">
-                                                @{
-                                                    var usedShifts = plan2.Assignments.GroupBy(a => a.AssignedShift).Select(g => g.Key).ToList();
-                                                }
-                                                <strong>@string.Join(", ", usedShifts)</strong>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Total Workers Required</td>
-                                            <td class="text-end">
-                                                @{
-                                                    // Calculate using the same logic as Line-wise Worker Allocation Summary
-                                                    var plan2LineGroups = plan2.Assignments.GroupBy(a => a.LineId);
-                                                    var plan2TotalWorkers = 0;
-                                                    foreach(var lg in plan2LineGroups)
-                                                    {
-                                                        var shift1MaxWorkers = lg.Where(a => a.AssignedShift == ProductionPlanning.Models.WorkType.Shift1).Max(a => (int?)a.ActualAllocatedWorkers) ?? 0;
-                                                        var shift2MaxWorkers = lg.Where(a => a.AssignedShift == ProductionPlanning.Models.WorkType.Shift2).Max(a => (int?)a.ActualAllocatedWorkers) ?? 0;
-                                                        var shift3MaxWorkers = lg.Where(a => a.AssignedShift == ProductionPlanning.Models.WorkType.Shift3).Max(a => (int?)a.ActualAllocatedWorkers) ?? 0;
-                                                        plan2TotalWorkers += shift1MaxWorkers + shift2MaxWorkers + shift3MaxWorkers;
-                                                    }
-                                                }
-                                                <strong>@plan2TotalWorkers</strong>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Idle Hours Available</td>
-                                            <td class="text-end text-muted">
-                                                @{
-                                                    // Get which shifts are actually being used (use different variable name)
-                                                    var activeShifts = plan2.Assignments.GroupBy(a => a.AssignedShift).Select(g => g.Key).ToList();
-                                                    
-                                                    // Recalculate shift capacities (need access to HariKerja data)
-                                                    var hariKerja = ViewBag.Results?.HariKerja;
-                                                    var usedShiftCapacity = 0.0;
-                                                    
-                                                    if(hariKerja != null)
-                                                    {
-                                                        foreach(var shift in activeShifts)
-                                                        {
-                                                            double shiftCapacityPerLine = 0.0;
-                                                            
-                                                            if(shift == ProductionPlanning.Models.WorkType.Shift1)
-                                                            {
-                                                                shiftCapacityPerLine = ((hariKerja.TotalSeninKamis * 458) + (hariKerja.TotalJumat * 418)) / 60.0;
-                                                            }
-                                                            else if(shift == ProductionPlanning.Models.WorkType.Shift2)
-                                                            {
-                                                                shiftCapacityPerLine = ((hariKerja.TotalSeninKamis + hariKerja.TotalJumat) * 398) / 60.0;
-                                                            }
-                                                            else if(shift == ProductionPlanning.Models.WorkType.Shift3)
-                                                            {
-                                                                shiftCapacityPerLine = ((hariKerja.TotalSeninKamis + hariKerja.TotalJumat) * 398) / 60.0;
-                                                            }
-                                                            
-                                                            usedShiftCapacity += shiftCapacityPerLine * 8; // multiply by 8 lines
-                                                        }
-                                                    }
-                                                    
-                                                    // Calculate hours used in those shifts only
-                                                    var totalUsedHours = plan2.Assignments.Sum(a => a.PlannedHours + a.ChangeoverHours);
-
-                                                    // Idle hours = capacity of used shifts - actual used hours
-                                                    var idleHours = usedShiftCapacity - totalUsedHours;
-                                                }
-                                                <strong>@idleHours.ToString("N2")</strong> hours
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        }
-    }
+    
 
 </div>
 

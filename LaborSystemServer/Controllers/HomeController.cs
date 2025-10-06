@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Models;
 using LaborSystemServer.Service;
+using LaborSystemServer.DTOs;
 using ProductionPlanning.Models;
 using DataAccess.Data;
 
@@ -12,17 +13,22 @@ namespace LaborSystemServer.Controllers
         private readonly ILogger<HomeController> _logger;
         private readonly ExcelService _excelService;
         private readonly IProductionPlanningService _productionPlanningService;
+        private readonly IWorkTimeService _workTimeService;
+        private readonly IShiftConfigurationService _shiftConfigurationService;
         private readonly ApplicationDBContext _context;
 
         public HomeController(
             ILogger<HomeController> logger, 
             ExcelService excelService,
             IProductionPlanningService productionPlanningService,
-            ApplicationDBContext context)
+            ApplicationDBContext context, IWorkTimeService workTimeService,
+            IShiftConfigurationService shiftConfigurationService)
         {
             _logger = logger;
             _excelService = excelService;
             _productionPlanningService = productionPlanningService;
+            _workTimeService = workTimeService;
+            _shiftConfigurationService = shiftConfigurationService;
             _context = context;
         }
 
@@ -74,6 +80,29 @@ namespace LaborSystemServer.Controllers
                 ViewBag.ProductionPlan1 = productionPlan1;
                 ViewBag.ProductionPlan2 = productionPlan2;
 
+                var shiftMinutes = await _workTimeService.GetWorkMinutesPerShiftAsync();
+                
+                // Calculate capacities per line
+                var shiftCapacitiesPerLine = new Dictionary<WorkType, double>();
+                foreach (var shift in shiftMinutes)
+                {
+                    var regularMinutes = shift.Value.regularMinutes;
+                    Console.WriteLine($"Shift {shift.Key}: Regular Minutes = {regularMinutes}");
+                    var fridayMinutes = shift.Value.fridayMinutes;
+                    
+                    double hoursPerLine = ((regularMinutes * hariKerja.TotalSeninKamis) + 
+                                        (fridayMinutes * hariKerja.TotalJumat)) / 60.0;
+                    
+                    shiftCapacitiesPerLine[shift.Key] = hoursPerLine;
+                }
+                
+                ViewBag.ShiftCapacities = shiftCapacitiesPerLine;
+
+                ViewBag.LineCount = (await _productionPlanningService.GetSortedLinesAsync()).Count;
+
+                var shiftConfigurations = await _shiftConfigurationService.GetAllShiftConfigurationsAsync();
+                ViewBag.ShiftConfigurations = shiftConfigurations;
+
                 ViewBag.Success = "Excel file uploaded and production plan generated successfully!";
                 
                 return View("Index");
@@ -82,42 +111,6 @@ namespace LaborSystemServer.Controllers
             {
                 _logger.LogError(ex, "Error uploading Excel file and generating production plan");
                 ViewBag.Error = $"Error processing Excel file: {ex.Message}";
-                return View("Index");
-            }
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> GenerateProductionPlan(int month, int year)
-        {
-            try
-            {
-                var productionPlan = await _productionPlanningService.GenerateProductionPlanAsync(month, year);
-                
-                ViewBag.ProductionPlan = productionPlan;
-                ViewBag.Success = $"Production plan generated successfully for {month:D2}/{year}";
-
-                return View("ProductionPlan", productionPlan);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error generating production plan for {Month}/{Year}", month, year);
-                ViewBag.Error = $"Error generating production plan: {ex.Message}";
-                return View("Index");
-            }
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> ViewProductionPlan(int month, int year)
-        {
-            try
-            {
-                var productionPlan = await _productionPlanningService.GenerateProductionPlanAsync(month, year);
-                return View("ProductionPlan", productionPlan);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error viewing production plan for {Month}/{Year}", month, year);
-                ViewBag.Error = $"Error loading production plan: {ex.Message}";
                 return View("Index");
             }
         }

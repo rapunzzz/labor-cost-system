@@ -1,0 +1,708 @@
+@using ProductionPlanning.Models
+@{
+    ViewData["Title"] = "Shift Work Configuration Timeline";
+}
+
+<div class="container">
+    <h2 class="mb-4" style="color: #1a202c; font-weight: 600;">Shift Work Configuration Timeline</h2>
+    
+    @{
+        var allShifts = (List<ShiftWorkConfiguration>)ViewBag.ShiftConfigurations;
+        var shiftsWithFriday = new List<ShiftWorkConfiguration>();
+        var shiftsWithoutFriday = new List<ShiftWorkConfiguration>();
+        
+        foreach(var s in allShifts)
+        {
+            var shiftClassTemp = "";
+            switch ((int)s.WorkType)
+            {
+                case 0: shiftClassTemp = "nonshift"; break;
+                case 1: shiftClassTemp = "shift1"; break;
+                case 2: shiftClassTemp = "shift2"; break;
+                case 3: shiftClassTemp = "shift3"; break;
+            }
+            
+            if (shiftClassTemp == "shift1" || shiftClassTemp == "nonshift")
+            {
+                shiftsWithFriday.Add(s);
+            }
+            else
+            {
+                shiftsWithoutFriday.Add(s);
+            }
+        }
+    }
+    
+    @foreach(var shift in shiftsWithFriday)
+    {
+        // Fungsi helper untuk menghitung time blocks
+        Func<List<WorkTimeDeduction>, List<dynamic>> calculateTimeBlocks = (deductions) => {
+            var blocks = new List<dynamic>();
+            var sortedDeds = deductions.OrderBy(d => d.StartTime).ToList();
+            
+            var currentTime = shift.StartTime;
+            foreach (var deduction in sortedDeds)
+            {
+                if (currentTime < deduction.StartTime || (currentTime > deduction.StartTime && shift.StartTime > shift.EndTime))
+                {
+                    blocks.Add(new { 
+                        Type = "Work", 
+                        Start = currentTime, 
+                        End = deduction.StartTime,
+                        Name = "Work"
+                    });
+                }
+                
+                blocks.Add(new { 
+                    Type = "Deduction", 
+                    Start = deduction.StartTime, 
+                    End = deduction.EndTime,
+                    Name = deduction.Name
+                });
+                
+                currentTime = deduction.EndTime;
+            }
+            
+            if (currentTime != shift.EndTime)
+            {
+                blocks.Add(new { 
+                    Type = "Work", 
+                    Start = currentTime, 
+                    End = shift.EndTime,
+                    Name = "Work"
+                });
+            }
+            
+            return blocks;
+        };
+        
+        // Hitung total minutes shift
+        var shiftDuration = shift.EndTime - shift.StartTime;
+        if (shiftDuration.TotalMinutes < 0)
+        {
+            shiftDuration = shiftDuration.Add(TimeSpan.FromHours(24));
+        }
+        var totalMinutes = (int)shiftDuration.TotalMinutes;
+        
+        Func<WorkTimeDeduction, bool> isWithinShiftRange = (deduction) => {
+            if (shift.StartTime > shift.EndTime)
+            {
+                return deduction.StartTime >= shift.StartTime || deduction.StartTime < shift.EndTime;
+            }
+            else
+            {
+                return deduction.StartTime >= shift.StartTime && deduction.StartTime < shift.EndTime;
+            }
+        };
+
+        var normalDaysDeductions = shift.TimeDeductions
+            .Where(d => d.IsActive && d.Name != "Friday Prayer" && isWithinShiftRange(d))
+            .ToList();
+            
+        var fridayDeductions = shift.TimeDeductions
+            .Where(d => d.IsActive && isWithinShiftRange(d))
+            .ToList();
+        
+        var normalDaysBlocks = calculateTimeBlocks(normalDaysDeductions);
+        var fridayBlocks = calculateTimeBlocks(fridayDeductions);
+        
+        // Calculate capacity untuk Normal Days
+        int normalDeductionMinutes = 0;
+        foreach (var deduction in normalDaysDeductions)
+        {
+            var dedDuration = deduction.EndTime - deduction.StartTime;
+            if (dedDuration.TotalMinutes < 0)
+            {
+                dedDuration = dedDuration.Add(TimeSpan.FromHours(24));
+            }
+            normalDeductionMinutes += (int)dedDuration.TotalMinutes;
+        }
+        var normalWorkMinutes = totalMinutes - normalDeductionMinutes;
+        var normalCapacityHours = normalWorkMinutes / 60.0;
+        
+        // Calculate capacity untuk Friday
+        int fridayDeductionMinutes = 0;
+        foreach (var deduction in fridayDeductions)
+        {
+            var dedDuration = deduction.EndTime - deduction.StartTime;
+            if (dedDuration.TotalMinutes < 0)
+            {
+                dedDuration = dedDuration.Add(TimeSpan.FromHours(24));
+            }
+            fridayDeductionMinutes += (int)dedDuration.TotalMinutes;
+        }
+        var fridayWorkMinutes = totalMinutes - fridayDeductionMinutes;
+        
+        // Determine shift class
+        var shiftClass = "";
+        var shiftTitle = "";
+        var shiftIcon = "";
+        
+        switch ((int)shift.WorkType)
+        {
+            case 0:
+                shiftClass = "nonshift";
+                shiftTitle = "NonShift (Regular Hours)";
+                shiftIcon = "fas fa-sun";
+                break;
+            case 1:
+                shiftClass = "shift1";
+                shiftTitle = "Shift 1 (Morning Shift)";
+                shiftIcon = "fas fa-cloud-sun";
+                break;
+            case 2:
+                shiftClass = "shift2";
+                shiftTitle = "Shift 2 (Afternoon Shift)";
+                shiftIcon = "fas fa-cloud-moon";
+                break;
+            case 3:
+                shiftClass = "shift3";
+                shiftTitle = "Shift 3 (Night Shift)";
+                shiftIcon = "fas fa-moon";
+                break;
+        }
+        
+        var hasFriday = shiftClass == "shift1" || shiftClass == "nonshift";
+        
+        <div class="shift-card @shiftClass">
+            <div class="shift-header">
+                <div class="shift-icon">
+                    <i class="@shiftIcon"></i>
+                </div>
+                <div class="shift-info">
+                    <h5>@shiftTitle</h5>
+                    <div class="time-range">@shift.StartTime.ToString(@"hh\:mm") - @shift.EndTime.ToString(@"hh\:mm")</div>
+                </div>
+            </div>
+            
+            <div class="timeline-grid @(hasFriday ? "two-columns" : "one-column-half")">
+                <div class="day-section">
+                    <div class="day-label">
+                        <span class="day-name">Normal Days</span>
+                        <span class="day-subtitle">Mon - Thu</span>
+                        <span class="capacity-badge-inline">@normalWorkMinutes.ToString("F0") min</span>
+                    </div>
+                    <div class="timeline-container">
+                        <div class="timeline-track">
+                            @{
+                                var normalBlockCount = normalDaysBlocks.Count;
+                                var normalBlockWidth = normalBlockCount > 0 ? 100.0 / normalBlockCount : 100.0;
+                            }
+                            @for (int i = 0; i < normalDaysBlocks.Count; i++)
+                            {
+                                var block = normalDaysBlocks[i];
+                                var left = i * normalBlockWidth;
+                                
+                                var blockDuration = (block.End - block.Start).TotalMinutes;
+                                if (blockDuration < 0) blockDuration += 1440;
+                                
+                                var blockClass = block.Type == "Work" ? "time-block-work" : "time-block-deduction";
+                                var timeRange = $"{block.Start:hh\\:mm}-{block.End:hh\\:mm}";
+                                
+                                <div class="time-block @blockClass" 
+                                        style="left: @left.ToString("F2")%; width: @normalBlockWidth.ToString("F2")%;"
+                                        data-time="@timeRange" 
+                                        data-duration="@((int)blockDuration)" 
+                                        data-type="@block.Name">
+                                    <div class="time-block-label">@block.Name</div>
+                                    <div class="time-block-duration">@((int)blockDuration) min</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                @if (hasFriday)
+                {
+                    <div class="day-section">
+                        <div class="day-label">
+                            <span class="day-name">Friday</span>
+                            <span class="day-subtitle">+ Prayer</span>
+                            <span class="capacity-badge-inline">@fridayWorkMinutes.ToString("F0") min</span>
+                        </div>
+                        <div class="timeline-container">
+                            <div class="timeline-track">
+                                @{
+                                    var fridayBlockCount = fridayBlocks.Count;
+                                    var fridayBlockWidth = fridayBlockCount > 0 ? 100.0 / fridayBlockCount : 100.0;
+                                }
+                                @for (int i = 0; i < fridayBlocks.Count; i++)
+                                {
+                                    var block = fridayBlocks[i];
+                                    var left = i * fridayBlockWidth;
+                                    
+                                    var blockDuration = (block.End - block.Start).TotalMinutes;
+                                    if (blockDuration < 0) blockDuration += 1440;
+                                    
+                                    var blockClass = block.Type == "Work" ? "time-block-work" : "time-block-deduction";
+                                    var timeRange = $"{block.Start:hh\\:mm}-{block.End:hh\\:mm}";
+                                    
+                                    <div class="time-block @blockClass" 
+                                            style="left: @left.ToString("F2")%; width: @fridayBlockWidth.ToString("F2")%;"
+                                            data-time="@timeRange" 
+                                            data-duration="@((int)blockDuration)" 
+                                            data-type="@block.Name">
+                                        <div class="time-block-label">@block.Name</div>
+                                        <div class="time-block-duration">@((int)blockDuration) min</div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    
+    @if (shiftsWithoutFriday.Count > 0)
+    {
+        <div class="shifts-row">
+            @foreach(var shift in shiftsWithoutFriday)
+            {
+                // Fungsi helper untuk menghitung time blocks
+                Func<List<WorkTimeDeduction>, List<dynamic>> calculateTimeBlocks = (deductions) => {
+                    var blocks = new List<dynamic>();
+                    var sortedDeds = deductions.OrderBy(d => d.StartTime).ToList();
+                    
+                    var currentTime = shift.StartTime;
+                    foreach (var deduction in sortedDeds)
+                    {
+                        if (currentTime < deduction.StartTime || (currentTime > deduction.StartTime && shift.StartTime > shift.EndTime))
+                        {
+                            blocks.Add(new { 
+                                Type = "Work", 
+                                Start = currentTime, 
+                                End = deduction.StartTime,
+                                Name = "Work"
+                            });
+                        }
+                        
+                        blocks.Add(new { 
+                            Type = "Deduction", 
+                            Start = deduction.StartTime, 
+                            End = deduction.EndTime,
+                            Name = deduction.Name
+                        });
+                        
+                        currentTime = deduction.EndTime;
+                    }
+                    
+                    if (currentTime != shift.EndTime)
+                    {
+                        blocks.Add(new { 
+                            Type = "Work", 
+                            Start = currentTime, 
+                            End = shift.EndTime,
+                            Name = "Work"
+                        });
+                    }
+                    
+                    return blocks;
+                };
+                
+                // Hitung total minutes shift
+                var shiftDuration = shift.EndTime - shift.StartTime;
+                if (shiftDuration.TotalMinutes < 0)
+                {
+                    shiftDuration = shiftDuration.Add(TimeSpan.FromHours(24));
+                }
+                var totalMinutes = (int)shiftDuration.TotalMinutes;
+                
+                Func<WorkTimeDeduction, bool> isWithinShiftRange = (deduction) => {
+                    if (shift.StartTime > shift.EndTime)
+                    {
+                        return deduction.StartTime >= shift.StartTime || deduction.StartTime < shift.EndTime;
+                    }
+                    else
+                    {
+                        return deduction.StartTime >= shift.StartTime && deduction.StartTime < shift.EndTime;
+                    }
+                };
+
+                var normalDaysDeductions = shift.TimeDeductions
+                    .Where(d => d.IsActive && d.Name != "Friday Prayer" && isWithinShiftRange(d))
+                    .ToList();
+                
+                var normalDaysBlocks = calculateTimeBlocks(normalDaysDeductions);
+                
+                // Calculate capacity untuk Normal Days
+                int normalDeductionMinutes = 0;
+                foreach (var deduction in normalDaysDeductions)
+                {
+                    var dedDuration = deduction.EndTime - deduction.StartTime;
+                    if (dedDuration.TotalMinutes < 0)
+                    {
+                        dedDuration = dedDuration.Add(TimeSpan.FromHours(24));
+                    }
+                    normalDeductionMinutes += (int)dedDuration.TotalMinutes;
+                }
+                var normalWorkMinutes = totalMinutes - normalDeductionMinutes;
+                
+                // Determine shift class
+                var shiftClass = "";
+                var shiftTitle = "";
+                var shiftIcon = "";
+                
+                switch ((int)shift.WorkType)
+                {
+                    case 2:
+                        shiftClass = "shift2";
+                        shiftTitle = "Shift 2 (Afternoon Shift)";
+                        shiftIcon = "fas fa-cloud-moon";
+                        break;
+                    case 3:
+                        shiftClass = "shift3";
+                        shiftTitle = "Shift 3 (Night Shift)";
+                        shiftIcon = "fas fa-moon";
+                        break;
+                }
+                
+                <div class="shift-card @shiftClass shift-half">
+                    <div class="shift-header">
+                        <div class="shift-icon">
+                            <i class="@shiftIcon"></i>
+                        </div>
+                        <div class="shift-info">
+                            <h5>@shiftTitle</h5>
+                            <div class="time-range">@shift.StartTime.ToString(@"hh\:mm") - @shift.EndTime.ToString(@"hh\:mm")</div>
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-grid one-column-full">
+                        <div class="day-section">
+                            <div class="day-label">
+                                <span class="day-name">Normal Days</span>
+                                <span class="day-subtitle">Mon - Thu</span>
+                                <span class="capacity-badge-inline">@normalWorkMinutes.ToString("F0") min</span>
+                            </div>
+                            <div class="timeline-container">
+                                <div class="timeline-track">
+                                    @{
+                                        var normalBlockCount = normalDaysBlocks.Count;
+                                        var normalBlockWidth = normalBlockCount > 0 ? 100.0 / normalBlockCount : 100.0;
+                                    }
+                                    @for (int i = 0; i < normalDaysBlocks.Count; i++)
+                                    {
+                                        var block = normalDaysBlocks[i];
+                                        var left = i * normalBlockWidth;
+                                        
+                                        var blockDuration = (block.End - block.Start).TotalMinutes;
+                                        if (blockDuration < 0) blockDuration += 1440;
+                                        
+                                        var blockClass = block.Type == "Work" ? "time-block-work" : "time-block-deduction";
+                                        var timeRange = $"{block.Start:hh\\:mm}-{block.End:hh\\:mm}";
+                                        
+                                        <div class="time-block @blockClass" 
+                                                style="left: @left.ToString("F2")%; width: @normalBlockWidth.ToString("F2")%;"
+                                                data-time="@timeRange" 
+                                                data-duration="@((int)blockDuration)" 
+                                                data-type="@block.Name">
+                                            <div class="time-block-label">@block.Name</div>
+                                            <div class="time-block-duration">@((int)blockDuration) min</div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="card shadow-sm" style="border: none; border-radius: 16px; padding: 20px;">
+        <h6 class="mb-3" style="color: #1a202c; font-weight: 600; font-size: 14px;">Legend</h6>
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #6366f1;"></div>
+                <span>NonShift Work</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #8b5cf6;"></div>
+                <span>Shift 1 Work</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #06b6d4;"></div>
+                <span>Shift 2 Work</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #10b981;"></div>
+                <span>Shift 3 Work</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ef4444;"></div>
+                <span>Time Deduction</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    body {
+        background: #f5f7fa;
+        padding: 20px;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    .shift-card {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        transition: all 0.3s ease;
+    }
+    
+    .shifts-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .shift-half {
+        margin-bottom: 0;
+    }
+    
+    .shift-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .shift-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 24px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .shift-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        color: white;
+        margin-right: 14px;
+    }
+    
+    .shift-info h5 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: #1a202c;
+    }
+    
+    .shift-info .time-range {
+        font-size: 13px;
+        color: #718096;
+        margin-top: 2px;
+    }
+    
+    .timeline-grid {
+        display: grid;
+        gap: 20px;
+    }
+    
+    .timeline-grid.one-column-half {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .timeline-grid.two-columns {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .day-section {
+        min-width: 0;
+    }
+    
+    .day-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+    
+    .day-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: #1a202c;
+    }
+    
+    .day-subtitle {
+        font-size: 11px;
+        color: #94a3b8;
+    }
+    
+    .capacity-badge-inline {
+        margin-left: auto;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        color: white;
+    }
+    
+    .timeline-container {
+        position: relative;
+        height: 56px;
+        background: #f7fafc;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+    }
+    
+    .timeline-track {
+        position: relative;
+        height: 100%;
+        display: flex;
+    }
+    
+    .time-block {
+        position: absolute;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 600;
+        color: white;
+        transition: all 0.2s;
+        cursor: pointer;
+        border-right: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    .time-block:hover {
+        filter: brightness(1.08);
+        z-index: 10;
+        transform: translateY(-2px);
+    }
+    
+    .time-block-label {
+        font-size: 11px;
+        font-weight: 600;
+        margin-bottom: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 90%;
+    }
+    
+    .time-block-duration {
+        font-size: 10px;
+        opacity: 0.9;
+    }
+    
+    /* Work colors - different per shift */
+    .nonshift .time-block-work { background: #6366f1; }
+    .shift1 .time-block-work { background: #8b5cf6; }
+    .shift2 .time-block-work { background: #06b6d4; }
+    .shift3 .time-block-work { background: #10b981; }
+    
+    /* Deduction color - same for all (red) */
+    .time-block-deduction {
+        background: #ef4444;
+    }
+    
+    /* Icon colors */
+    .nonshift .shift-icon { background: #6366f1; }
+    .nonshift .capacity-badge-inline { background: #6366f1; }
+    
+    .shift1 .shift-icon { background: #8b5cf6; }
+    .shift1 .capacity-badge-inline { background: #8b5cf6; }
+    
+    .shift2 .shift-icon { background: #06b6d4; }
+    .shift2 .capacity-badge-inline { background: #06b6d4; }
+    
+    .shift3 .shift-icon { background: #10b981; }
+    .shift3 .capacity-badge-inline { background: #10b981; }
+    
+    .legend {
+        display: flex;
+        gap: 24px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #475569;
+    }
+    
+    .legend-color {
+        width: 32px;
+        height: 20px;
+        border-radius: 6px;
+    }
+    
+    .tooltip-custom {
+        position: absolute;
+        background: rgba(15, 23, 42, 0.95);
+        color: white;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        pointer-events: none;
+        z-index: 1000;
+        white-space: nowrap;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    .tooltip-custom .tooltip-time {
+        font-weight: 600;
+        margin-bottom: 2px;
+    }
+    
+    .tooltip-custom .tooltip-duration {
+        opacity: 0.8;
+        font-size: 11px;
+    }
+    
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const timeBlocks = document.querySelectorAll('.time-block');
+        let tooltip = null;
+
+        timeBlocks.forEach(block => {
+            block.addEventListener('mouseenter', (e) => {
+                const time = e.target.closest('.time-block').dataset.time;
+                const duration = e.target.closest('.time-block').dataset.duration;
+                const type = e.target.closest('.time-block').dataset.type;
+                
+                tooltip = document.createElement('div');
+                tooltip.className = 'tooltip-custom';
+                tooltip.innerHTML = `
+                    <div class="tooltip-time">${type}: ${time}</div>
+                    <div class="tooltip-duration">Duration: ${duration} minutes</div>
+                `;
+                document.body.appendChild(tooltip);
+                
+                updateTooltipPosition(e);
+            });
+
+            block.addEventListener('mousemove', updateTooltipPosition);
+
+            block.addEventListener('mouseleave', () => {
+                if (tooltip) {
+                    tooltip.remove();
+                    tooltip = null;
+                }
+            });
+        });
+
+        function updateTooltipPosition(e) {
+            if (tooltip) {
+                tooltip.style.left = (e.pageX + 12) + 'px';
+                tooltip.style.top = (e.pageY - 40) + 'px';
+            }
+        }
+    });
+</script>

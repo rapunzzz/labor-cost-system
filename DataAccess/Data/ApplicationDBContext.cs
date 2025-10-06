@@ -17,7 +17,7 @@ namespace DataAccess.Data
         public DbSet<OptimizedLineCapacity> OptimizedLineCapacities { get; set; }
         public DbSet<ShiftWorkConfiguration> ShiftWorkConfigurations { get; set; }
         public DbSet<OvertimeProductionAssignment> OvertimeProductionAssignments { get; set; }
-
+        public DbSet<WorkTimeDeduction> WorkTimeDeductions { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

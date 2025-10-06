@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace DataAccess.Migrations
 {
     /// <inheritdoc />
-    public partial class NewModels : Migration
+    public partial class InitModels : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -48,9 +48,8 @@ namespace DataAccess.Migrations
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     WorkType = table.Column<int>(type: "INTEGER", nullable: false),
-                    RegularDayMinutes = table.Column<int>(type: "INTEGER", nullable: false),
-                    FridayMinutes = table.Column<int>(type: "INTEGER", nullable: false),
-                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false)
+                    StartTime = table.Column<TimeSpan>(type: "TEXT", nullable: false),
+                    EndTime = table.Column<TimeSpan>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -104,6 +103,29 @@ namespace DataAccess.Migrations
                         principalTable: "ModelReferences",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "WorkTimeDeductions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Name = table.Column<string>(type: "TEXT", nullable: false),
+                    StartTime = table.Column<TimeSpan>(type: "TEXT", nullable: false),
+                    EndTime = table.Column<TimeSpan>(type: "TEXT", nullable: false),
+                    WorkType = table.Column<int>(type: "INTEGER", nullable: false),
+                    ShiftWorkConfigurationId = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_WorkTimeDeductions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_WorkTimeDeductions_ShiftWorkConfigurations_ShiftWorkConfigurationId",
+                        column: x => x.ShiftWorkConfigurationId,
+                        principalTable: "ShiftWorkConfigurations",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -206,6 +228,11 @@ namespace DataAccess.Migrations
                 name: "IX_ProductionAssignments_ModelDataId",
                 table: "ProductionAssignments",
                 column: "ModelDataId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_WorkTimeDeductions_ShiftWorkConfigurationId",
+                table: "WorkTimeDeductions",
+                column: "ShiftWorkConfigurationId");
         }
 
         /// <inheritdoc />
@@ -221,13 +248,16 @@ namespace DataAccess.Migrations
                 name: "ProductionAssignments");
 
             migrationBuilder.DropTable(
-                name: "ShiftWorkConfigurations");
+                name: "WorkTimeDeductions");
 
             migrationBuilder.DropTable(
                 name: "LineConfigurations");
 
             migrationBuilder.DropTable(
                 name: "ModelDatas");
+
+            migrationBuilder.DropTable(
+                name: "ShiftWorkConfigurations");
 
             migrationBuilder.DropTable(
                 name: "ModelReferences");

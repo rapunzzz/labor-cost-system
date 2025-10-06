@@ -1,0 +1,133 @@
+@model List<ProductionPlanning.Models.ModelReference>
+@{
+    ViewData["Title"] = "Model SUT Management";
+}
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-cogs"></i> Model SUT Management</h2>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+            <i class="fas fa-upload"></i> Upload Excel
+        </button>
+    </div>
+
+    @if(TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle"></i> @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    @if(TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle"></i> @TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <!-- Model Reference Table -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-table"></i> Model Reference Data</h5>
+        </div>
+        <div class="card-body">
+            @if (!Model.Any())
+            {
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> No model references found. Click "Upload Excel" to add data.
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 5%" class="text-center">No</th>
+                                <th style="width: 30%">Model Name</th>
+                                <th style="width: 15%" class="text-center">SUT</th>
+                                <th style="width: 15%" class="text-center">Head Count</th>
+                                <th style="width: 15%" class="text-center">Created Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{int counter = 1;}
+                            @foreach(var item in Model)
+                            {
+                                <tr>
+                                    <td class="text-center">@counter</td>
+                                    <td><strong>@item.ModelName</strong></td>
+                                    <td class="text-center">@item.SUT.ToString("N2")</td>
+                                    <td class="text-center">@item.HeadCount</td>
+                                    <td class="text-center">@DateTime.Now.ToString("dd/MM/yy")</td>
+                                </tr>
+                                counter++;
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-upload"></i> Upload Model SUT Excel
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="UploadExcel" method="post" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Excel File</label>
+                        <input type="file" name="file" id="file" 
+                               class="form-control" accept=".xlsx,.xls" required />
+                        <div class="form-text">
+                            <i class="fas fa-info-circle"></i> Upload Excel file containing Model Name, SUT, and Head Count columns
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <strong>Expected Excel Format:</strong>
+                        <ul class="mb-0">
+                            <li>Column 1: ModelName</li>
+                            <li>Column 2: SUT (use )</li>
+                            <li>Column 3: HeadCount (numeric)</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-cloud-upload-alt"></i> Upload
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card {
+        border: none;
+        border-radius: 10px;
+    }
+    
+    .table th {
+        font-weight: 600;
+    }
+    
+    .btn-group-sm > .btn {
+        padding: 0.25rem 0.5rem;
+    }
+</style>

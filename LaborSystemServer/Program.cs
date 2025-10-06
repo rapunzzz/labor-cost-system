@@ -12,6 +12,9 @@ builder.Services.AddDbContext<ApplicationDBContext>(options =>
 
 builder.Services.AddScoped<ExcelService>();
 builder.Services.AddScoped<IProductionPlanningService, ProductionPlanningService>();
+builder.Services.AddScoped<IWorkTimeService, WorkTimeService>();
+builder.Services.AddScoped<IShiftConfigurationService, ShiftConfigurationService>();
+builder.Services.AddScoped<IModelSutService, ModelSutService>();
 
 var app = builder.Build();
 

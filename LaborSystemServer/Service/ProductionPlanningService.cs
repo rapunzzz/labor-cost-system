@@ -1,6 +1,7 @@
 using ProductionPlanning.Models;
 using Microsoft.EntityFrameworkCore;
 using DataAccess.Data;
+using LaborSystemServer.DTOs;
 
 namespace LaborSystemServer.Service
 {
@@ -8,18 +9,22 @@ namespace LaborSystemServer.Service
     {
         Task<ProductionPlanResult> GenerateProductionPlanAsync(int month, int year, AllocationMethod method = AllocationMethod.MultiShift);
         Task<List<OptimizedLineCapacity>> GetOptimizedCapacitiesAsync(int month, int year);
+        Task<List<LineConfiguration>> GetSortedLinesAsync();
     }
 
     public class ProductionPlanningService : IProductionPlanningService
     {
         private readonly ApplicationDBContext _context;
         private readonly ILogger<ProductionPlanningService> _logger;
+        private readonly IWorkTimeService _workTimeService;
         private const double CHANGEOVER_TIME_HOURS = 15.0 / 60.0; 
         
-        public ProductionPlanningService(ApplicationDBContext context, ILogger<ProductionPlanningService> logger)
+        public ProductionPlanningService(ApplicationDBContext context, ILogger<ProductionPlanningService> logger, IWorkTimeService workTimeService)
         {
             _context = context;
             _logger = logger;
+            _workTimeService = workTimeService;
+
         }
 
         public async Task<ProductionPlanResult> GenerateProductionPlanAsync(int month, int year, AllocationMethod method = AllocationMethod.MultiShift)
@@ -30,12 +35,14 @@ namespace LaborSystemServer.Service
             // Get work days and calculate work hours per shift
             var workDays = GetWorkDays(month, year);
             var shiftCapacities = method == AllocationMethod.NonShiftWithOvertime 
-                ? CalculateNonShiftCapacities(workDays)
-                : CalculateShiftCapacities(workDays);
+                ? await CalculateNonShiftCapacitiesAsync(workDays)
+                : await CalculateShiftCapacitiesAsync(workDays);
             
             // Get data
+            Console.WriteLine($"cek shift capacities: {shiftCapacities.Values.Sum()}");
             var models = await GetSortedModelsAsync(month, year);
             var lines = await GetSortedLinesAsync();
+            Console.WriteLine($"Lines available: {lines.Count}");
             var optimizedCapacities = await GetOptimizedCapacitiesAsync(month, year);
 
             var result = new ProductionPlanResult
@@ -97,20 +104,24 @@ namespace LaborSystemServer.Service
             return result;
         }
 
-        private Dictionary<WorkType, double> CalculateShiftCapacities(WorkDayInfo workDays)
+        private async Task<Dictionary<WorkType, double>> CalculateShiftCapacitiesAsync(WorkDayInfo workDays)
         {
-            var (nonshiftRegular, nonshiftFriday) = ShiftWorkConfiguration.GetWorkMinutesPerShift(WorkType.NonShift);
-            var (shift1Regular, shift1Friday) = ShiftWorkConfiguration.GetWorkMinutesPerShift(WorkType.Shift1);
-            var (shift2Regular, shift2Friday) = ShiftWorkConfiguration.GetWorkMinutesPerShift(WorkType.Shift2);
-            var (shift3Regular, shift3Friday) = ShiftWorkConfiguration.GetWorkMinutesPerShift(WorkType.Shift3);
-
-            return new Dictionary<WorkType, double>
+            // Fetch dari DB menggunakan service
+            var workMinutes = await _workTimeService.GetWorkMinutesPerShiftAsync();
+            
+            var result = new Dictionary<WorkType, double>();
+            
+            foreach (var shift in new[] { WorkType.Shift1, WorkType.Shift2, WorkType.Shift3 })
             {
-                { WorkType.Shift1, ((workDays.RegularDays * shift1Regular) + (workDays.FridayDays * shift1Friday)) / 60.0 },
-                { WorkType.Shift2, ((workDays.RegularDays * shift2Regular) + (workDays.FridayDays * shift2Friday)) / 60.0 },
-                { WorkType.Shift3, ((workDays.RegularDays * shift3Regular) + (workDays.FridayDays * shift3Friday)) / 60.0 }
-            };
-
+                if (workMinutes.ContainsKey(shift))
+                {
+                    var (regularMinutes, fridayMinutes) = workMinutes[shift];
+                    var totalMinutes = (workDays.RegularDays * regularMinutes) + (workDays.FridayDays * fridayMinutes);
+                    result[shift] = totalMinutes / 60.0;
+                }
+            }
+            
+            return result;
         }
 
         private async Task AllocateModelsWithMultiShiftAsync(
@@ -199,7 +210,7 @@ namespace LaborSystemServer.Service
                         var plannedHours = unitsToAssign * modelWorkHoursPerUnit;
                         var totalHoursWithChangeover = plannedHours + changeoverTime;
                         var surplusWorkers = lineCapacity - model.ModelReference.HeadCount;
-
+                        Console.WriteLine($"test");
                         var assignment = new ProductionAssignment
                         {
                             ModelDataId = model.Id,
@@ -242,17 +253,23 @@ namespace LaborSystemServer.Service
             return remainingQuantity;
         }
 
-        private Dictionary<WorkType, double> CalculateNonShiftCapacities(WorkDayInfo workDays)
+        private async Task<Dictionary<WorkType, double>> CalculateNonShiftCapacitiesAsync(WorkDayInfo workDays)
         {
-            var (nonshiftRegular, nonshiftFriday) = ShiftWorkConfiguration.GetWorkMinutesPerShift(WorkType.NonShift);
+            var workMinutes = await _workTimeService.GetWorkMinutesPerShiftAsync();
             
-            var regularHours = ((workDays.RegularDays * nonshiftRegular) + (workDays.FridayDays * nonshiftFriday)) / 60.0;
-            // NOTE: 500 hours adalah total overtime budget untuk semua lines, akan didistribusikan saat alokasi
-            
-            return new Dictionary<WorkType, double>
+            if (workMinutes.ContainsKey(WorkType.NonShift))
             {
-                { WorkType.NonShift, regularHours } // Only regular hours per line
-            };
+                var (regularMinutes, fridayMinutes) = workMinutes[WorkType.NonShift];
+                var totalMinutes = (workDays.RegularDays * regularMinutes) + (workDays.FridayDays * fridayMinutes);
+                var regularHours = totalMinutes / 60.0;
+                
+                return new Dictionary<WorkType, double>
+                {
+                    { WorkType.NonShift, regularHours }
+                };
+            }
+            
+            throw new InvalidOperationException("NonShift configuration not found");
         }
 
         private async Task AllocateModelsNonShiftWithOvertimeAsync(
@@ -404,7 +421,7 @@ namespace LaborSystemServer.Service
                 .ToListAsync();
         }
 
-        private async Task<List<LineConfiguration>> GetSortedLinesAsync()
+        public async Task<List<LineConfiguration>> GetSortedLinesAsync()
         {
             
             return await _context.LineConfigurations
@@ -564,143 +581,5 @@ namespace LaborSystemServer.Service
             };
         }
     }
-    // Supporting classes
-    public class ProductionPlanResult
-    {
-        public int Month { get; set; }
-        public int Year { get; set; }
-        public AllocationMethod AllocationMethod { get; set; }
-        public double TotalWorkHoursPerLine { get; set; }
-        public double TotalDemandHours { get; set; }
-        public double TotalCapacityHours { get; set; }
-        public double CapacityGap { get; set; }
-        public int LineCount { get; set; }
-        public List<ProductionAssignment> Assignments { get; set; } = new();
-        public List<OvertimeProductionAssignment> OvertimeAssignments { get; set; } = new();
-        public List<UnassignedModel> UnassignedModels { get; set; } = new();
-        
-        public Dictionary<WorkType, double> ShiftCapacities { get; set; } = new();
-        
-        public WorkerOptimizationSummary WorkerOptimization { get; set; }
-        
-        public ShiftUtilizationSummary ShiftUtilization => CalculateShiftUtilization();
-        
-        // Updated overtime properties for NonShift method
-        public double TotalOvertimeUsed { get; set; } = 0.0;
-        public double RequiredOvertimeHours { get; set; } = 0.0; 
-        public double ActualOvertimeHours { get; set; } = 0.0;   
-        public double RemainingOvertimeBudget { get; set; } = 0.0; 
 
-        private ShiftUtilizationSummary CalculateShiftUtilization()
-        {
-            var summary = new ShiftUtilizationSummary();
-            
-            // Handle different allocation methods
-            var shiftsToAnalyze = AllocationMethod == AllocationMethod.NonShiftWithOvertime
-                ? new[] { WorkType.NonShift }
-                : new[] { WorkType.Shift1, WorkType.Shift2, WorkType.Shift3 };
-            
-            foreach (WorkType shift in shiftsToAnalyze)
-            {
-                var shiftAssignments = Assignments.Where(a => a.AssignedShift == shift).ToList();
-                var totalHours = shiftAssignments.Sum(a => a.PlannedHours + a.ChangeoverHours);
-                var maxCapacity = ShiftCapacities.GetValueOrDefault(shift, 0) * LineCount;
-
-                summary.ShiftUtilizations[shift] = new ShiftUtilizationInfo
-                {
-                    Shift = shift,
-                    TotalCapacityHours = maxCapacity,
-                    UsedHours = totalHours,
-                    UtilizationPercentage = maxCapacity > 0 ? (totalHours / maxCapacity) * 100 : 0,
-                    AssignmentCount = shiftAssignments.Count
-                };
-            }
-            
-            return summary;
-        }
-    }
-
-    public class ShiftUtilizationSummary
-    {
-        public Dictionary<WorkType, ShiftUtilizationInfo> ShiftUtilizations { get; set; } = new();
-        
-        public double TotalUtilizedHours => ShiftUtilizations.Values.Sum(s => s.UsedHours);
-        public double TotalCapacityHours => ShiftUtilizations.Values.Sum(s => s.TotalCapacityHours);
-        public double OverallUtilizationPercentage => TotalCapacityHours > 0 ? 
-            (TotalUtilizedHours / TotalCapacityHours) * 100 : 0;
-    }
-
-    public class ShiftUtilizationInfo
-    {
-        public WorkType Shift { get; set; }
-        public double TotalCapacityHours { get; set; }
-        public double UsedHours { get; set; }
-        public double UtilizationPercentage { get; set; }
-        public int AssignmentCount { get; set; }
-    }
-
-    // Update existing AssignedModelInfo to include shift
-    public class AssignedModelInfo
-    {
-        public string ModelName { get; set; }
-        public int Quantity { get; set; }
-        public double Hours { get; set; }
-        public double ChangeoverHours { get; set; }
-        public int RequiredWorkers { get; set; }
-        public int SurplusWorkers { get; set; }
-        public WorkType AssignedShift { get; set; } // NEW
-    }
-
-    public class LineUtilization
-    {
-        public int LineId { get; set; }
-        public string LineName { get; set; }
-        public int Capacity { get; set; } // Current capacity (optimized or default)
-        public int DefaultCapacity { get; set; }
-        public double MaxHours { get; set; }
-        public double UsedHours { get; set; }
-        public double ChangeoverHours { get; set; }
-        public double AvailableHours { get; set; }
-        public double UtilizationPercentage { get; set; }
-        public List<AssignedModelInfo> AssignedModels { get; set; } = new();
-    }
-
-    public class UnassignedModel
-    {
-        public string ModelName { get; set; }
-        public int UnassignedQuantity { get; set; }
-        public double RequiredHours { get; set; }
-        public int RequiredHeadCount { get; set; }
-        public string Reason { get; set; }
-    }
-
-    public class WorkDayInfo
-    {
-        public int RegularDays { get; set; }
-        public int FridayDays { get; set; }
-    }
-
-    public class WorkerOptimizationSummary
-    {
-        public int Month { get; set; }
-        public int Year { get; set; }
-        public List<OptimizedLineInfo> OptimizedLines { get; set; } = new();
-        public int TotalWorkersSaved { get; set; }
-        public int TotalDefaultWorkers { get; set; }
-        public int TotalOptimizedWorkers { get; set; }
-        public double OptimizationPercentage => TotalDefaultWorkers > 0 
-            ? ((double)TotalWorkersSaved / TotalDefaultWorkers) * 100 
-            : 0;
-    }
-
-    public class OptimizedLineInfo
-    {
-        public int LineId { get; set; }
-        public string LineName { get; set; }
-        public WorkType Shift { get; set; }
-        public int DefaultCapacity { get; set; }
-        public int OptimizedCapacity { get; set; }
-        public int WorkersSaved { get; set; }
-        public string Notes { get; set; }
-    }
 }

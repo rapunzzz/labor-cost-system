@@ -1,0 +1,70 @@
+<!-- Edit Modal Component -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit"></i> Edit Shift Configuration
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editForm" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="EditId" name="id" />
+                
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(ViewBag.EditError as string))
+                    {
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle"></i> @ViewBag.EditError
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label for="EditWorkType" class="form-label">Work Type</label>
+                        <select name="WorkType" id="EditWorkType" class="form-select" required>
+                            <option value="">-- Select Work Type --</option>
+                            @if (ViewBag.WorkTypes != null)
+                            {
+                                @foreach (var workType in ViewBag.WorkTypes as IEnumerable<ProductionPlanning.Models.WorkType>)
+                                {
+                                    <option value="@((int)workType)">@workType.ToString()</option>
+                                }
+                            }
+                        </select>
+                        <div class="form-text">
+                            <i class="fas fa-info-circle"></i> Select the type of work shift
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="EditStartTime" class="form-label">Start Time</label>
+                            <input name="StartTime" id="EditStartTime" type="time" class="form-control" required />
+                            <div class="form-text">When does the shift start?</div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="EditEndTime" class="form-label">End Time</label>
+                            <input name="EndTime" id="EditEndTime" type="time" class="form-control" required />
+                            <div class="form-text">When does the shift end?</div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> <strong>Note:</strong>
+                        <p class="mb-0 mt-2">Changes will affect all future calculations. Time deductions will remain unchanged.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save"></i> Update Configuration
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

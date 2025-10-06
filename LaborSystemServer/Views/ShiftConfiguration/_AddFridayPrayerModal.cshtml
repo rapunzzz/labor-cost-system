@@ -1,0 +1,72 @@
+<!-- Add Work Time Deduction Modal -->
+<div class="modal fade" id="addFridayPrayerModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="addDeductionModalLabel">
+                    <i class="fas fa-plus-circle"></i> Add Time Deduction
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="CreateDeduction" method="post">
+                @Html.AntiForgeryToken()
+                
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(ViewBag.DeductionError as string))
+                    {
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle"></i> @ViewBag.DeductionError
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label for="DeductionFridayName" class="form-label">Deduction Name</label>
+                        <input type="text" name="Name" id="DeductionFridayName" class="form-control" required maxlength="100" />
+                        <div class="form-text">
+                            <i class="fas fa-info-circle"></i> Name of the time deduction
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="WorkType" class="form-label">Work Type</label>
+                        <select name="WorkType" id="DeductionFridayWorkType" class="form-select" required>
+                            <option value="">-- Select Work Type --</option>
+                            @if (ViewBag.WorkTypes != null)
+                            {
+                                @foreach (var workType in ViewBag.WorkTypes as IEnumerable<ProductionPlanning.Models.WorkType>)
+                                {
+                                    <option value="@((int)workType)">@workType.ToString()</option>
+                                }
+                            }
+                        </select>
+                        <div class="form-text">
+                            <i class="fas fa-info-circle"></i> Select the type of work shift
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="DeductionFridayStartTime" class="form-label">Start Time</label>
+                            <input type="time" name="StartTime" id="DeductionFridayStartTime" class="form-control" required />
+                            <div class="form-text">When does it start?</div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="DeductionFridayEndTime" class="form-label">End Time</label>
+                            <input type="time" name="EndTime" id="DeductionFridayEndTime" class="form-control" required />
+                            <div class="form-text">When does it end?</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Add Deduction
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
