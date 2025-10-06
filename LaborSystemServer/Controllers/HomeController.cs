@@ -63,10 +63,8 @@ namespace LaborSystemServer.Controllers
                 var dataExcel = _excelService.ReadExcel(stream, month, year);
                 var hariKerja = _excelService.GetHariKerja(month, year);
                 
-                // Save Excel data to database first
                 await _context.SaveChangesAsync();
                 
-                // Automatically generate production plan after successful upload
                 var productionPlan1 = await _productionPlanningService.GenerateProductionPlanAsync(month, year, AllocationMethod.NonShiftWithOvertime);
                 var productionPlan2 = await _productionPlanningService.GenerateProductionPlanAsync(month, year, AllocationMethod.MultiShift);
                 
@@ -82,12 +80,10 @@ namespace LaborSystemServer.Controllers
 
                 var shiftMinutes = await _workTimeService.GetWorkMinutesPerShiftAsync();
                 
-                // Calculate capacities per line
                 var shiftCapacitiesPerLine = new Dictionary<WorkType, double>();
                 foreach (var shift in shiftMinutes)
                 {
                     var regularMinutes = shift.Value.regularMinutes;
-                    Console.WriteLine($"Shift {shift.Key}: Regular Minutes = {regularMinutes}");
                     var fridayMinutes = shift.Value.fridayMinutes;
                     
                     double hoursPerLine = ((regularMinutes * hariKerja.TotalSeninKamis) + 
@@ -96,12 +92,13 @@ namespace LaborSystemServer.Controllers
                     shiftCapacitiesPerLine[shift.Key] = hoursPerLine;
                 }
                 
+                ViewBag.ShiftMinutes = shiftMinutes;
                 ViewBag.ShiftCapacities = shiftCapacitiesPerLine;
-
                 ViewBag.LineCount = (await _productionPlanningService.GetSortedLinesAsync()).Count;
 
-                var shiftConfigurations = await _shiftConfigurationService.GetAllShiftConfigurationsAsync();
-                ViewBag.ShiftConfigurations = shiftConfigurations;
+                // GUNAKAN DATA DARI SERVICE
+                var shiftTimelines = await _workTimeService.GetShiftTimelinesAsync();
+                ViewBag.ShiftTimelines = shiftTimelines;
 
                 ViewBag.Success = "Excel file uploaded and production plan generated successfully!";
                 

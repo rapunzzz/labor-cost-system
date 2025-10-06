@@ -1,148 +1,25 @@
-@using ProductionPlanning.Models
+@using LaborSystemServer.Service
 @{
     ViewData["Title"] = "Shift Work Configuration Timeline";
     
-    // ===== HELPER FUNCTIONS - Didefinisikan sekali di awal =====
-    Func<ShiftWorkConfiguration, List<WorkTimeDeduction>, List<dynamic>> CalculateTimeBlocks = (shift, deductions) => {
-        var blocks = new List<dynamic>();
-        var sortedDeds = deductions.OrderBy(d => d.StartTime).ToList();
-        var currentTime = shift.StartTime;
-        
-        foreach (var deduction in sortedDeds)
-        {
-            if (currentTime < deduction.StartTime || (currentTime > deduction.StartTime && shift.StartTime > shift.EndTime))
-            {
-                blocks.Add(new { 
-                    Type = "Work", 
-                    Start = currentTime, 
-                    End = deduction.StartTime,
-                    Name = "Work"
-                });
-            }
-            
-            blocks.Add(new { 
-                Type = "Deduction", 
-                Start = deduction.StartTime, 
-                End = deduction.EndTime,
-                Name = deduction.Name
-            });
-            
-            currentTime = deduction.EndTime;
-        }
-        
-        if (currentTime != shift.EndTime)
-        {
-            blocks.Add(new { 
-                Type = "Work", 
-                Start = currentTime, 
-                End = shift.EndTime,
-                Name = "Work"
-            });
-        }
-        
-        return blocks;
-    };
-    
-    Func<ShiftWorkConfiguration, int> CalculateTotalMinutes = (shift) => {
-        var duration = shift.EndTime - shift.StartTime;
-        if (duration.TotalMinutes < 0)
-        {
-            duration = duration.Add(TimeSpan.FromHours(24));
-        }
-        return (int)duration.TotalMinutes;
-    };
-    
-    Func<ShiftWorkConfiguration, WorkTimeDeduction, bool> IsWithinShiftRange = (shift, deduction) => {
-        if (shift.StartTime > shift.EndTime)
-        {
-            return deduction.StartTime >= shift.StartTime || deduction.StartTime < shift.EndTime;
-        }
-        return deduction.StartTime >= shift.StartTime && deduction.StartTime < shift.EndTime;
-    };
-    
-    Func<List<WorkTimeDeduction>, int> CalculateDeductionMinutes = (deductions) => {
-        int total = 0;
-        foreach (var deduction in deductions)
-        {
-            var duration = deduction.EndTime - deduction.StartTime;
-            if (duration.TotalMinutes < 0)
-            {
-                duration = duration.Add(TimeSpan.FromHours(24));
-            }
-            total += (int)duration.TotalMinutes;
-        }
-        return total;
-    };
-    
-    Func<int, (string className, string title, string icon)> GetShiftDisplayInfo = (workType) => {
-        return workType switch
-        {
-            0 => ("nonshift", "NonShift (Regular Hours)", "fas fa-sun"),
-            1 => ("shift1", "Shift 1 (Morning Shift)", "fas fa-cloud-sun"),
-            2 => ("shift2", "Shift 2 (Afternoon Shift)", "fas fa-cloud-moon"),
-            3 => ("shift3", "Shift 3 (Night Shift)", "fas fa-moon"),
-            _ => ("", "", "")
-        };
-    };
-    
-    // ===== DATA PREPARATION =====
-    var allShifts = (List<ShiftWorkConfiguration>)ViewBag.ShiftConfigurations;
-    var shiftsWithFriday = allShifts.Where(s => (int)s.WorkType == 0 || (int)s.WorkType == 1).ToList();
-    var shiftsWithoutFriday = allShifts.Where(s => (int)s.WorkType == 2 || (int)s.WorkType == 3).ToList();
-    
-    // Prepare data untuk semua shifts
-    var shiftDataList = new List<dynamic>();
-    
-    foreach(var shift in allShifts)
-    {
-        var totalMinutes = CalculateTotalMinutes(shift);
-        var displayInfo = GetShiftDisplayInfo((int)shift.WorkType);
-        var hasFriday = (int)shift.WorkType == 0 || (int)shift.WorkType == 1;
-        
-        var normalDaysDeductions = shift.TimeDeductions
-            .Where(d => d.IsActive && d.Name != "Friday Prayer" && IsWithinShiftRange(shift, d))
-            .ToList();
-            
-        var fridayDeductions = shift.TimeDeductions
-            .Where(d => d.IsActive && IsWithinShiftRange(shift, d))
-            .ToList();
-        
-        var normalDaysBlocks = CalculateTimeBlocks(shift, normalDaysDeductions);
-        var fridayBlocks = CalculateTimeBlocks(shift, fridayDeductions);
-        
-        var normalWorkMinutes = totalMinutes - CalculateDeductionMinutes(normalDaysDeductions);
-        var fridayWorkMinutes = totalMinutes - CalculateDeductionMinutes(fridayDeductions);
-        
-        shiftDataList.Add(new {
-            Shift = shift,
-            ClassName = displayInfo.className,
-            Title = displayInfo.title,
-            Icon = displayInfo.icon,
-            HasFriday = hasFriday,
-            NormalDaysBlocks = normalDaysBlocks,
-            FridayBlocks = fridayBlocks,
-            NormalWorkMinutes = normalWorkMinutes,
-            FridayWorkMinutes = fridayWorkMinutes
-        });
-    }
-    
-    var shiftsWithFridayData = shiftDataList.Where(s => s.HasFriday).ToList();
-    var shiftsWithoutFridayData = shiftDataList.Where(s => !s.HasFriday).ToList();
+    var shiftTimelines = (List<ShiftTimelineDto>)ViewBag.ShiftTimelines;
+    var shiftsWithFriday = shiftTimelines.Where(s => s.HasFriday).ToList();
+    var shiftsWithoutFriday = shiftTimelines.Where(s => !s.HasFriday).ToList();
 }
 
 <div class="container">
     <h2 class="mb-4" style="color: #1a202c; font-weight: 600;">Shift Work Configuration Timeline</h2>
     
-    @foreach(var shiftData in shiftsWithFridayData)
+    @foreach(var shift in shiftsWithFriday)
     {
-        <div class="shift-card @shiftData.ClassName">
+        <div class="shift-card @shift.ClassName">
             <div class="shift-header">
                 <div class="shift-icon">
-                    <i class="@shiftData.Icon"></i>
+                    <i class="@shift.Icon"></i>
                 </div>
                 <div class="shift-info">
-                    <h5>@shiftData.Title</h5>
-                    <div class="time-range">@shiftData.Shift.StartTime.ToString(@"hh\:mm") - @shiftData.Shift.EndTime.ToString(@"hh\:mm")</div>
+                    <h5>@shift.Title</h5>
+                    <div class="time-range">@shift.StartTime.ToString(@"hh\:mm") - @shift.EndTime.ToString(@"hh\:mm")</div>
                 </div>
             </div>
             
@@ -151,65 +28,60 @@
                     <div class="day-label">
                         <span class="day-name">Normal Days</span>
                         <span class="day-subtitle">Mon - Thu</span>
-                        <span class="capacity-badge-inline">@shiftData.NormalWorkMinutes.ToString("F0") min</span>
+                        <span class="capacity-badge-inline">@shift.NormalWorkMinutes min</span>
                     </div>
                     <div class="timeline-container">
                         <div class="timeline-track">
                             @{
-                                var normalBlockCount = shiftData.NormalDaysBlocks.Count;
+                                var normalBlockCount = shift.NormalDaysBlocks.Count;
                                 var normalBlockWidth = normalBlockCount > 0 ? 100.0 / normalBlockCount : 100.0;
                             }
-                            @for (int i = 0; i < shiftData.NormalDaysBlocks.Count; i++)
+                            @for (int i = 0; i < shift.NormalDaysBlocks.Count; i++)
                             {
-                                var block = shiftData.NormalDaysBlocks[i];
+                                var block = shift.NormalDaysBlocks[i];
                                 var left = i * normalBlockWidth;
-                                var blockDuration = (block.End - block.Start).TotalMinutes;
-                                if (blockDuration < 0) blockDuration += 1440;
                                 var blockClass = block.Type == "Work" ? "time-block-work" : "time-block-deduction";
                                 var timeRange = $"{block.Start:hh\\:mm}-{block.End:hh\\:mm}";
                                 
                                 <div class="time-block @blockClass" 
                                         style="left: @left.ToString("F2")%; width: @normalBlockWidth.ToString("F2")%;"
                                         data-time="@timeRange" 
-                                        data-duration="@((int)blockDuration)" 
+                                        data-duration="@block.DurationMinutes" 
                                         data-type="@block.Name">
                                     <div class="time-block-label">@block.Name</div>
-                                    <div class="time-block-duration">@((int)blockDuration) min</div>
+                                    <div class="time-block-duration">@block.DurationMinutes min</div>
                                 </div>
                             }
                         </div>
                     </div>
                 </div>
                 
-                @* Friday Section *@
                 <div class="day-section">
                     <div class="day-label">
                         <span class="day-name">Friday</span>
                         <span class="day-subtitle">+ Prayer</span>
-                        <span class="capacity-badge-inline">@shiftData.FridayWorkMinutes.ToString("F0") min</span>
+                        <span class="capacity-badge-inline">@shift.FridayWorkMinutes min</span>
                     </div>
                     <div class="timeline-container">
                         <div class="timeline-track">
                             @{
-                                var fridayBlockCount = shiftData.FridayBlocks.Count;
+                                var fridayBlockCount = shift.FridayBlocks.Count;
                                 var fridayBlockWidth = fridayBlockCount > 0 ? 100.0 / fridayBlockCount : 100.0;
                             }
-                            @for (int i = 0; i < shiftData.FridayBlocks.Count; i++)
+                            @for (int i = 0; i < shift.FridayBlocks.Count; i++)
                             {
-                                var block = shiftData.FridayBlocks[i];
+                                var block = shift.FridayBlocks[i];
                                 var left = i * fridayBlockWidth;
-                                var blockDuration = (block.End - block.Start).TotalMinutes;
-                                if (blockDuration < 0) blockDuration += 1440;
                                 var blockClass = block.Type == "Work" ? "time-block-work" : "time-block-deduction";
                                 var timeRange = $"{block.Start:hh\\:mm}-{block.End:hh\\:mm}";
                                 
                                 <div class="time-block @blockClass" 
                                         style="left: @left.ToString("F2")%; width: @fridayBlockWidth.ToString("F2")%;"
                                         data-time="@timeRange" 
-                                        data-duration="@((int)blockDuration)" 
+                                        data-duration="@block.DurationMinutes" 
                                         data-type="@block.Name">
                                     <div class="time-block-label">@block.Name</div>
-                                    <div class="time-block-duration">@((int)blockDuration) min</div>
+                                    <div class="time-block-duration">@block.DurationMinutes min</div>
                                 </div>
                             }
                         </div>
@@ -219,20 +91,19 @@
         </div>
     }
     
-    @* Render shifts tanpa Friday dalam grid *@
-    @if (shiftsWithoutFridayData.Count > 0)
+    @if (shiftsWithoutFriday.Count > 0)
     {
         <div class="shifts-row">
-            @foreach(var shiftData in shiftsWithoutFridayData)
+            @foreach(var shift in shiftsWithoutFriday)
             {
-                <div class="shift-card @shiftData.ClassName shift-half">
+                <div class="shift-card @shift.ClassName shift-half">
                     <div class="shift-header">
                         <div class="shift-icon">
-                            <i class="@shiftData.Icon"></i>
+                            <i class="@shift.Icon"></i>
                         </div>
                         <div class="shift-info">
-                            <h5>@shiftData.Title</h5>
-                            <div class="time-range">@shiftData.Shift.StartTime.ToString(@"hh\:mm") - @shiftData.Shift.EndTime.ToString(@"hh\:mm")</div>
+                            <h5>@shift.Title</h5>
+                            <div class="time-range">@shift.StartTime.ToString(@"hh\:mm") - @shift.EndTime.ToString(@"hh\:mm")</div>
                         </div>
                     </div>
                     
@@ -241,30 +112,28 @@
                             <div class="day-label">
                                 <span class="day-name">Normal Days</span>
                                 <span class="day-subtitle">Mon - Thu</span>
-                                <span class="capacity-badge-inline">@shiftData.NormalWorkMinutes.ToString("F0") min</span>
+                                <span class="capacity-badge-inline">@shift.NormalWorkMinutes min</span>
                             </div>
                             <div class="timeline-container">
                                 <div class="timeline-track">
                                     @{
-                                        var normalBlockCount = shiftData.NormalDaysBlocks.Count;
+                                        var normalBlockCount = shift.NormalDaysBlocks.Count;
                                         var normalBlockWidth = normalBlockCount > 0 ? 100.0 / normalBlockCount : 100.0;
                                     }
-                                    @for (int i = 0; i < shiftData.NormalDaysBlocks.Count; i++)
+                                    @for (int i = 0; i < shift.NormalDaysBlocks.Count; i++)
                                     {
-                                        var block = shiftData.NormalDaysBlocks[i];
+                                        var block = shift.NormalDaysBlocks[i];
                                         var left = i * normalBlockWidth;
-                                        var blockDuration = (block.End - block.Start).TotalMinutes;
-                                        if (blockDuration < 0) blockDuration += 1440;
                                         var blockClass = block.Type == "Work" ? "time-block-work" : "time-block-deduction";
                                         var timeRange = $"{block.Start:hh\\:mm}-{block.End:hh\\:mm}";
                                         
                                         <div class="time-block @blockClass" 
                                                 style="left: @left.ToString("F2")%; width: @normalBlockWidth.ToString("F2")%;"
                                                 data-time="@timeRange" 
-                                                data-duration="@((int)blockDuration)" 
+                                                data-duration="@block.DurationMinutes" 
                                                 data-type="@block.Name">
                                             <div class="time-block-label">@block.Name</div>
-                                            <div class="time-block-duration">@((int)blockDuration) min</div>
+                                            <div class="time-block-duration">@block.DurationMinutes min</div>
                                         </div>
                                     }
                                 </div>
