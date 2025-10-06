@@ -119,6 +119,7 @@
                                                         data-name="@deduction.Name"
                                                         data-starttime="@deduction.StartTime.ToString(@"hh\:mm")"
                                                         data-endtime="@deduction.EndTime.ToString(@"hh\:mm")"
+                                                        data-isactive="@deduction.IsActive.ToString().ToLower()"
                                                         data-shift-id="@config.Id"
                                                         data-worktype="@((int)config.WorkType)"
                                                         title="Edit">
@@ -433,6 +434,7 @@
                 const endtime = this.dataset.endtime;
                 const shiftId = this.dataset.shiftId;
                 const workType = this.dataset.worktype;
+                const isActive = this.dataset.isactive;
                 
                 document.getElementById('EditDeductionId').value = id;
                 document.getElementById('EditDeductionName').value = name;
@@ -440,6 +442,7 @@
                 document.getElementById('EditDeductionEndTime').value = endtime;
                 document.getElementById('EditDeductionShiftId').value = shiftId;
                 document.getElementById('EditDeductionWorkType').value = workType;
+                document.getElementById('EditDeductionIsActive').value = isActive;
                 document.getElementById('editDeductionForm').action = `/ShiftConfiguration/EditDeduction/${id}`;
                 
                 new bootstrap.Modal(document.getElementById('editDeductionModal')).show();
