@@ -210,7 +210,6 @@ namespace LaborSystemServer.Service
                         var plannedHours = unitsToAssign * modelWorkHoursPerUnit;
                         var totalHoursWithChangeover = plannedHours + changeoverTime;
                         var surplusWorkers = lineCapacity - model.ModelReference.HeadCount;
-                        Console.WriteLine($"test");
                         var assignment = new ProductionAssignment
                         {
                             ModelDataId = model.Id,
